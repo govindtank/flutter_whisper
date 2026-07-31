@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -5,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_whisper/flutter_whisper.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const WhisperDemoApp());
@@ -26,7 +30,7 @@ class WhisperDemoApp extends StatelessWidget {
   }
 }
 
-enum AppState { idle, downloading, paused, initializing, ready, transcribing, error }
+enum AppState { idle, downloading, paused, initializing, ready, recording, transcribing, error }
 
 class WhisperDemoScreen extends StatefulWidget {
   const WhisperDemoScreen({super.key});
@@ -51,17 +55,48 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
   bool _onboardingDone = false;
   late Map<WhisperModel, bool> _cached = {for (final m in WhisperModel.values) m: false};
 
+  // Recording + transcription progress.
+  bool _recording = false;
+  int _recordSeconds = 0;
+  Timer? _recordTimer;
+  int _transcribeProgress = 0;
+  String _language = 'auto';
+
+  // History (JSONL in app support dir).
+  File? _historyFile;
+  List<Map<String, dynamic>> _history = [];
+
   @override
   void initState() {
     super.initState();
     _loadOnboarding();
     _refreshCached();
+    _initHistory();
     _setIdle();
+  }
+
+  Future<void> _initHistory() async {
+    final dir = await _appSupportPath();
+    _historyFile = File('$dir/history.jsonl');
+    if (_historyFile!.existsSync()) {
+      try {
+        _history = _historyFile!
+            .readAsLinesSync()
+            .map((l) => jsonDecode(l) as Map<String, dynamic>)
+            .toList();
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _onboardingDone = prefs.getBool(_onboardingKey) ?? false);
+  }
+
+  @override
+  void dispose() {
+    _recordTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _finishOnboarding() async {
@@ -246,25 +281,134 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
       _state = AppState.transcribing;
       _status = 'Transcribing…';
       _hint = 'On-device — no data leaves your phone.';
+      _transcribeProgress = 0;
       _result = null;
     });
+    final options = _language == 'auto' ? null : WhisperOptions(language: _language);
     try {
-      final result = await _whisper.transcribeFile(file.path);
+      final result = await _whisper.transcribeFile(
+        file.path,
+        options: options,
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() => _transcribeProgress = p);
+        },
+      );
       if (!mounted) return;
       setState(() {
         _state = AppState.ready;
         _status = 'Done';
-        _hint = 'Transcribe another file, or try the sample.';
+        _hint = 'Transcribe another file, or record your voice.';
         _result = result;
       });
+      _appendHistory(result);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _state = AppState.ready;
-        _status = 'Transcription failed';
-        _hint = _friendlyError(e);
+        if (e is PlatformException && e.code == 'TRANSCRIPTION_CANCELLED') {
+          _status = 'Cancelled';
+          _hint = 'Tap Transcribe to start over.';
+        } else {
+          _status = 'Transcription failed';
+          _hint = _friendlyError(e);
+        }
       });
     }
+  }
+
+  // ---- Recording ----
+
+  Future<bool> _ensureMicPermission() async {
+    final status = await Permission.microphone.request();
+    if (status.isGranted) return true;
+    if (status.isPermanentlyDenied) {
+      if (!mounted) return false;
+      final open = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Microphone permission'),
+          content: const Text('Recording needs mic access. '
+              'Open Settings and allow it, then come back.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      if (open == true) await openAppSettings();
+      return false;
+    }
+    return false;
+  }
+
+  Future<void> _startRecording() async {
+    if (_state != AppState.ready) return;
+    if (!await _ensureMicPermission()) return;
+    try {
+      await _whisper.startRecording();
+      if (!mounted) return;
+      setState(() {
+        _state = AppState.recording;
+        _recording = true;
+        _recordSeconds = 0;
+        _status = 'Recording…';
+        _hint = 'Speak now. Tap Stop when done.';
+      });
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recordSeconds++);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _setError('Could not start recording', '$e');
+    }
+  }
+
+  Future<void> _stopAndTranscribe() async {
+    if (!_recording) return;
+    _recordTimer?.cancel();
+    setState(() {
+      _recording = false;
+      _state = AppState.transcribing;
+      _status = 'Transcribing recording…';
+      _hint = 'On-device — no data leaves your phone.';
+      _transcribeProgress = 0;
+    });
+    try {
+      final path = await _whisper.stopRecording();
+      if (!mounted) return;
+      _audioFile = File(path);
+      await _transcribe();
+    } catch (e) {
+      if (!mounted) return;
+      _setError('Could not finish recording', '$e');
+    }
+  }
+
+  void _appendHistory(TranscriptionResult r) {
+    final f = _historyFile;
+    if (f == null) return;
+    final entry = {
+      'text': r.text,
+      'language': r.language,
+      'duration': r.duration,
+      'ts': DateTime.now().toIso8601String(),
+    };
+    _history.insert(0, entry);
+    if (_history.length > 200) _history.removeRange(200, _history.length);
+    try {
+      f.writeAsStringSync(
+        '${jsonEncode(entry)}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
   }
 
   void _selectModel(WhisperModel m) {
@@ -312,6 +456,23 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
       appBar: AppBar(
         title: const Text('Flutter Whisper'),
         actions: [
+          IconButton(
+            tooltip: 'History',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HistoryScreen(
+                  history: List.of(_history),
+                  onClear: () {
+                    _history = [];
+                    _historyFile?.deleteSync();
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ),
+            ),
+          ),
           if (_state == AppState.ready || _state == AppState.transcribing)
             IconButton(
               tooltip: 'Reset',
@@ -332,7 +493,9 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
             _buildCapabilityChips(),
             const SizedBox(height: 16),
             _buildStatusCard(),
-            if (_state == AppState.ready || _state == AppState.transcribing) ...[
+            if (_state == AppState.ready ||
+                _state == AppState.recording ||
+                _state == AppState.transcribing) ...[
               const SizedBox(height: 16),
               _buildActions(),
             ],
@@ -366,6 +529,7 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
       AppState.downloading || AppState.paused => (Icons.download, Colors.blue),
       AppState.initializing => (Icons.settings, Colors.blue),
       AppState.ready => (Icons.check_circle, Colors.green),
+      AppState.recording => (Icons.mic, Colors.red),
       AppState.transcribing => (Icons.graphic_eq, Colors.teal),
       AppState.error => (Icons.error, Colors.red),
     };
@@ -391,6 +555,26 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
             if (_state == AppState.downloading && _dl == null) ...[
               const SizedBox(height: 12),
               const LinearProgressIndicator(),
+            ],
+            if (_state == AppState.transcribing) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: _transcribeProgress / 100),
+              const SizedBox(height: 8),
+              Text('$_transcribeProgress%',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
+            if (_state == AppState.recording) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.fiber_manual_record, color: Colors.red, size: 14),
+                  const SizedBox(width: 8),
+                  Text(
+                    _fmtDuration(Duration(seconds: _recordSeconds)),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
             ],
             const SizedBox(height: 8),
             Text(_hint, style: Theme.of(context).textTheme.bodySmall),
@@ -466,19 +650,63 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
 
   Widget _buildActions() {
     final busy = _state == AppState.transcribing;
+    final recording = _state == AppState.recording;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Transcribe', style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Text('Transcribe', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                DropdownButton<String>(
+                  value: _language,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 'auto', child: Text('Auto language')),
+                    DropdownMenuItem(value: 'en', child: Text('English')),
+                    DropdownMenuItem(value: 'hi', child: Text('Hindi')),
+                    DropdownMenuItem(value: 'es', child: Text('Spanish')),
+                    DropdownMenuItem(value: 'fr', child: Text('French')),
+                    DropdownMenuItem(value: 'de', child: Text('German')),
+                    DropdownMenuItem(value: 'ja', child: Text('Japanese')),
+                    DropdownMenuItem(value: 'zh', child: Text('Chinese')),
+                  ],
+                  onChanged: recording || busy
+                      ? null
+                      : (v) => setState(() => _language = v!),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: recording ? Colors.red : null,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: recording
+                  ? _stopAndTranscribe
+                  : busy
+                      ? null
+                      : _startRecording,
+              icon: Icon(recording ? Icons.stop : Icons.mic),
+              label: Text(
+                recording
+                    ? 'Stop & Transcribe'
+                    : busy
+                        ? 'Transcribing…'
+                        : 'Record & Transcribe',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: busy ? null : _pickAudioFile,
+                    onPressed: (busy || recording) ? null : _pickAudioFile,
                     icon: const Icon(Icons.file_open),
                     label: const Text('Pick audio'),
                   ),
@@ -486,14 +714,14 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: busy ? null : _trySample,
+                    onPressed: (busy || recording) ? null : _trySample,
                     icon: const Icon(Icons.audio_file),
                     label: const Text('Try sample'),
                   ),
                 ),
               ],
             ),
-            if (_audioFile != null) ...[
+            if (_audioFile != null && !recording) ...[
               const SizedBox(height: 8),
               ListTile(
                 dense: true,
@@ -505,17 +733,12 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                   onPressed: () => setState(() => _audioFile = null),
                 ),
               ),
+              FilledButton.tonalIcon(
+                onPressed: busy ? null : _transcribe,
+                icon: const Icon(Icons.transcribe),
+                label: const Text('Transcribe file'),
+              ),
             ],
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: (_audioFile == null || busy) ? null : _transcribe,
-              icon: busy
-                  ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.mic),
-              label: Text(busy ? 'Transcribing…' : 'Transcribe'),
-            ),
           ],
         ),
       ),
@@ -561,10 +784,23 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
-              child: IconButton(
-                tooltip: 'Copy text',
-                icon: const Icon(Icons.copy),
-                onPressed: () => Clipboard.setData(ClipboardData(text: r.text)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Copy text',
+                    icon: const Icon(Icons.copy),
+                    onPressed: () => Clipboard.setData(ClipboardData(text: r.text)),
+                  ),
+                  IconButton(
+                    tooltip: 'Share',
+                    icon: const Icon(Icons.share),
+                    onPressed: () => Share.share(
+                      r.text,
+                      subject: 'Transcription (${r.language})',
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -695,6 +931,69 @@ class _Slide extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Saved transcriptions (JSONL history).
+class HistoryScreen extends StatelessWidget {
+  const HistoryScreen({super.key, required this.history, required this.onClear});
+
+  final List<Map<String, dynamic>> history;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('History'),
+        actions: [
+          if (history.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear history',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () {
+                onClear();
+                Navigator.pop(context);
+              },
+            ),
+        ],
+      ),
+      body: history.isEmpty
+          ? const Center(child: Text('No transcriptions yet'))
+          : ListView.builder(
+              itemCount: history.length,
+              itemBuilder: (context, i) {
+                final e = history[i];
+                final text = e['text'] as String;
+                final ts = (e['ts'] as String).replaceFirst('T', ' ').split('.').first;
+                return ListTile(
+                  leading: const Icon(Icons.transcribe),
+                  title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Text('${e['language']} • $ts'),
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: Text('$ts • ${e['language']}'),
+                      content: SingleChildScrollView(
+                        child: SelectableText(text),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Close'),
+                        ),
+                        IconButton(
+                          tooltip: 'Copy',
+                          icon: const Icon(Icons.copy),
+                          onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

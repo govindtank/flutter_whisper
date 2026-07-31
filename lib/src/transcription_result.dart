@@ -52,11 +52,13 @@ class TranscriptionSegment {
 class TranscriptionResult {
   final String text;
   final String language;
+  final double duration;
   final List<TranscriptionSegment> segments;
 
   TranscriptionResult({
     required this.text,
     required this.language,
+    this.duration = 0.0,
     required this.segments,
   });
 
@@ -64,6 +66,7 @@ class TranscriptionResult {
     return TranscriptionResult(
       text: map['text'] as String? ?? '',
       language: map['language'] as String? ?? '',
+      duration: (map['duration'] as num?)?.toDouble() ?? 0.0,
       segments: (map['segments'] as List?)
               ?.map((s) => TranscriptionSegment.fromMap(Map<String, dynamic>.from(s)))
               .toList() ??

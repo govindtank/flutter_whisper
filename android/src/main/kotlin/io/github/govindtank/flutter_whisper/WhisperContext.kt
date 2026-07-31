@@ -1,6 +1,7 @@
 package io.github.govindtank.flutter_whisper
 
 import android.util.Log
+import kotlin.coroutines.cancellation.CancellationException
 import org.json.JSONObject
 
 /**
@@ -8,10 +9,16 @@ import org.json.JSONObject
  *
  * Native side is compiled from third_party/whisper.cpp (see
  * src/main/cpp/CMakeLists.txt). Model must be a ggml-*.bin file;
- * audio must be WAV (any rate/channels — resampled to 16 kHz mono natively).
+ * audio can be wav/mp3/flac/ogg — decoded + resampled to 16 kHz mono natively.
+ *
+ * [onProgress] receives 0..100 during transcription (called from native
+ * thread). [cancel] aborts an in-flight transcription at the next segment
+ * boundary.
  */
-class WhisperContext(private val modelPath: String) {
-
+class WhisperContext(
+    modelPath: String,
+    private val onProgress: (Int) -> Unit,
+) {
     private var handle: Long = 0
 
     init {
@@ -23,15 +30,28 @@ class WhisperContext(private val modelPath: String) {
         Log.i(TAG, "whisper context initialized")
     }
 
+    /** Called from native (transcribe worker thread). */
+    @Suppress("unused")
+    fun onNativeProgress(percent: Int) {
+        onProgress(percent)
+    }
+
     private external fun nativeInit(modelPath: String): Long
-    private external fun nativeTranscribe(handle: Long, audioPath: String): String
+    private external fun nativeTranscribe(handle: Long, audioPath: String, language: String): String
+    private external fun nativeCancel(handle: Long)
     private external fun nativeFree(handle: Long)
 
-    fun transcribe(audioPath: String): TranscriptionResult {
-        val json = nativeTranscribe(handle, audioPath)
+    /**
+     * Transcribes [audioPath] (blocking — call off the main thread).
+     *
+     * @throws CancellationException if [cancel] was called mid-transcription.
+     */
+    fun transcribe(audioPath: String, language: String = ""): TranscriptionResult {
+        val json = nativeTranscribe(handle, audioPath, language)
         val obj = JSONObject(json)
         val err = obj.optString("error")
         if (err.isNotEmpty()) {
+            if (err == "cancelled") throw CancellationException("Transcription cancelled")
             throw IllegalStateException(err)
         }
         val segments = obj.getJSONArray("segments")
@@ -54,6 +74,11 @@ class WhisperContext(private val modelPath: String) {
         )
     }
 
+    /** Aborts an in-flight transcription. Safe to call from any thread. */
+    fun cancel() {
+        if (handle != 0L) nativeCancel(handle)
+    }
+
     fun close() {
         if (handle != 0L) {
             nativeFree(handle)
@@ -61,7 +86,6 @@ class WhisperContext(private val modelPath: String) {
         }
     }
 
-    // Data class for transcription results
     data class TranscriptionResult(
         val fullText: String,
         val segments: List<Segment>,

@@ -104,38 +104,31 @@ class Whisper {
   ///
   /// [audioPath] - Path to audio file (wav, mp3, m4a, etc.)
   /// [options] - Override options for this transcription
+  /// [onProgress] - Receives 0..100 during transcription
   ///
   /// Returns [TranscriptionResult] with text, segments, language.
   /// Throws [WhisperError] on failure.
   Future<TranscriptionResult> transcribeFile(
     String audioPath, {
     WhisperOptions? options,
+    void Function(int)? onProgress,
   }) async {
     _assertInitialized();
-    return _engine!.transcribeFile(audioPath, options: options);
+    return _engine!.transcribeFile(audioPath, options: options, onProgress: onProgress);
   }
 
-  /// Transcribe raw PCM audio data.
+  /// Start recording from the microphone (16 kHz mono WAV on disk).
   ///
-  /// [pcmData] - Float32List of PCM audio (16kHz, mono)
-  /// [options] - Override options for this transcription
-  Future<TranscriptionResult> transcribePcm(
-    Float32List pcmData, {
-    WhisperOptions? options,
-  }) async {
+  /// Combine with [stopRecording] → [transcribeFile] for record-and-transcribe.
+  Future<void> startRecording() async {
     _assertInitialized();
-    return _engine!.transcribePcm(pcmData, options: options);
+    await _engine!.startRecording();
   }
 
-  /// Stream transcription segments as they're generated.
-  ///
-  /// Useful for real-time UI updates.
-  Stream<TranscriptionSegment> streamFile(
-    String audioPath, {
-    WhisperOptions? options,
-  }) {
+  /// Stop recording; returns path to the recorded WAV.
+  Future<String> stopRecording() async {
     _assertInitialized();
-    return _engine!.streamFile(audioPath, options: options);
+    return _engine!.stopRecording();
   }
 
   /// Dispose resources.

@@ -2,30 +2,23 @@ part of 'package:flutter_whisper/flutter_whisper.dart';
 
 /// Abstract engine interface for platform implementations.
 abstract class WhisperEngine {
-  bool get isInitialized;
-  bool get isTranscribing;
-  WhisperModel? get loadedModel;
-  double get progress;
-
   Future<void> initialize({
     required String modelPath,
     WhisperOptions? options,
   });
 
+  /// Transcribes [audioPath]. [onProgress] receives 0..100.
   Future<TranscriptionResult> transcribeFile(
     String audioPath, {
     WhisperOptions? options,
+    void Function(int)? onProgress,
   });
 
-  Future<TranscriptionResult> transcribePcm(
-    Float32List pcmData, {
-    WhisperOptions? options,
-  });
+  /// Starts mic recording to a WAV file.
+  Future<void> startRecording();
 
-  Stream<TranscriptionSegment> streamFile(
-    String audioPath, {
-    WhisperOptions? options,
-  });
+  /// Stops mic recording; returns the recorded WAV path.
+  Future<String> stopRecording();
 
   void cancel();
 
@@ -36,17 +29,16 @@ abstract class WhisperEngine {
 class MethodChannelWhisperEngine implements WhisperEngine {
   static const MethodChannel _channel = MethodChannel('flutter_whisper');
 
-  @override
-  bool get isInitialized => false;
+  void Function(int)? _onTranscribeProgress;
 
-  @override
-  bool get isTranscribing => false;
-
-  @override
-  WhisperModel? get loadedModel => null;
-
-  @override
-  double get progress => 0.0;
+  MethodChannelWhisperEngine() {
+    // Native progress events arrive as invocations on the same channel.
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'transcribeProgress') {
+        _onTranscribeProgress?.call(call.arguments as int);
+      }
+    });
+  }
 
   @override
   Future<void> initialize({
@@ -63,37 +55,35 @@ class MethodChannelWhisperEngine implements WhisperEngine {
   Future<TranscriptionResult> transcribeFile(
     String audioPath, {
     WhisperOptions? options,
+    void Function(int)? onProgress,
   }) async {
+    _onTranscribeProgress = onProgress;
     final result = await _channel.invokeMethod('transcribeFile', {
       'audioPath': audioPath,
       'options': options?.toMap(),
     });
+    _onTranscribeProgress = null;
     return TranscriptionResult.fromMap(Map<String, dynamic>.from(result));
   }
 
   @override
-  Future<TranscriptionResult> transcribePcm(
-    Float32List pcmData, {
-    WhisperOptions? options,
-  }) async {
-    throw UnimplementedError('PCM transcription not yet implemented');
+  Future<void> startRecording() async {
+    await _channel.invokeMethod('startRecording');
   }
 
   @override
-  Stream<TranscriptionSegment> streamFile(
-    String audioPath, {
-    WhisperOptions? options,
-  }) {
-    throw UnimplementedError('Streaming not yet implemented');
+  Future<String> stopRecording() async {
+    return _channel.invokeMethod('stopRecording') as String;
   }
 
   @override
   void cancel() {
-    // TODO: Implement cancel via event channel
+    _channel.invokeMethod('cancel');
   }
 
   @override
   Future<void> dispose() async {
-    // TODO: Implement dispose
+    _onTranscribeProgress = null;
+    await _channel.invokeMethod('dispose');
   }
 }

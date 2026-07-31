@@ -33,3 +33,5 @@
 1094	1407	1785490347	bin/libwhisper.so	d3e3b5344477779c
 3	2940	1785490349	CMakeFiles/whisper_jni.dir/whisper_jni.cpp.o	49253b79bac0d8ba
 2940	3042	1785490349	/Users/govind/workspace/flutter_whisper/example/build/flutter_whisper/intermediates/cxx/Debug/64486h4q/obj/arm64-v8a/libwhisper.so	46142bc530508009
+4	2829	1785491039	CMakeFiles/whisper_jni.dir/whisper_jni.cpp.o	49253b79bac0d8ba
+2829	8309	1785491045	/Users/govind/workspace/flutter_whisper/example/build/flutter_whisper/intermediates/cxx/Debug/64486h4q/obj/arm64-v8a/libwhisper.so	46142bc530508009
