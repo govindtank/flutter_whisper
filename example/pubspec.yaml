@@ -32,7 +32,6 @@ dependencies:
     sdk: flutter
   flutter_whisper:
     path: ../
-  permission_handler: ^11.3.0
 
 
   # The following adds the Cupertino Icons font to your application.

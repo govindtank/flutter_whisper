@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_whisper/flutter_whisper.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 
 void main() => runApp(const WhisperDemoApp());
@@ -45,22 +44,35 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
   }
 
   Future<void> _initialize() async {
-    setState(() => _status = 'Initializing ${_selectedModel.name}...');
-
-    final micStatus = await Permission.microphone.request();
-    if (!micStatus.isGranted) {
-      setState(() => _status = 'Microphone permission denied');
-      return;
-    }
+    setState(() {
+      _status = 'Downloading ${_selectedModel.name}...';
+      _progress = 0.0;
+    });
 
     try {
-      await Whisper().initialize(model: _selectedModel);
+      await Whisper().initialize(
+        model: _selectedModel,
+        onProgress: (p) {
+          setState(() {
+            _progress = p;
+            if (p < 1.0) {
+              _status = 'Downloading ${_selectedModel.name} '
+                  '${(p * 100).toStringAsFixed(0)}%';
+            } else {
+              _status = 'Initializing...';
+            }
+          });
+        },
+      );
       setState(() {
         _isInitialized = true;
         _status = 'Ready with ${_selectedModel.name} (${_selectedModel.fileSizeHuman})';
       });
     } catch (e) {
-      setState(() => _status = 'Error: $e');
+      setState(() {
+        _progress = 0.0;
+        _status = 'Error: $e';
+      });
     }
   }
 

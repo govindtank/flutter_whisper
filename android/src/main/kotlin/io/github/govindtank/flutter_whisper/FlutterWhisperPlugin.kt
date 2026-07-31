@@ -58,6 +58,9 @@ class FlutterWhisperPlugin : FlutterPlugin, MethodCallHandler {
 
             whisperContext = WhisperContext(modelFile.absolutePath)
             result.success(true)
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e("FlutterWhisper", "Native whisper library missing", e)
+            result.error("NATIVE_NOT_BUILT", "whisper.cpp native library not bundled yet", null)
         } catch (e: Exception) {
             Log.e("FlutterWhisper", "Initialize failed", e)
             result.error("INITIALIZATION_FAILED", e.message, null)

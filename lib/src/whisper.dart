@@ -37,16 +37,19 @@ class Whisper {
   ///
   /// [model] - Model to load (default: tiny)
   /// [options] - Transcription options (optional)
+  /// [onProgress] - Download progress callback (0.0-1.0), fires while
+  ///                the model downloads on first use.
   ///
   /// Throws [WhisperError] on failure.
   Future<void> initialize({
     WhisperModel model = WhisperModel.tiny,
     WhisperOptions options = const WhisperOptions(),
+    void Function(double)? onProgress,
   }) async {
     if (_isInitialized && _loadedModel == model) return;
 
-    // Get model file path
-    final modelPath = await _ensureModel(model);
+    // Get model file path (downloads if not cached)
+    final modelPath = await _ensureModel(model, onProgress);
 
     // Create platform engine
     _engine = _createEngine();
@@ -128,8 +131,37 @@ class Whisper {
   }
 
   /// Ensure model is available locally, downloading if needed.
-  Future<String> _ensureModel(WhisperModel model) async {
-    // For now, return the asset path - native side handles download
-    return 'assets/models/${model.name}.bin';
+  Future<String> _ensureModel(
+    WhisperModel model,
+    void Function(double)? onProgress,
+  ) async {
+    final dir = await getApplicationSupportDirectory();
+    final file = File('${dir.path}/models/${model.name}.bin');
+    if (file.existsSync() && file.lengthSync() > 0) return file.path;
+
+    final url = model.downloadUrl;
+    final request = await http.Client().send(http.Request('GET', Uri.parse(url)));
+    if (request.statusCode != 200) {
+      throw WhisperError(
+        'Model download failed: HTTP ${request.statusCode}',
+        WhisperErrorCode.modelDownloadFailed,
+      );
+    }
+
+    file.parent.createSync(recursive: true);
+    final total = request.contentLength ?? 0;
+    final sink = file.openWrite();
+    var received = 0;
+    try {
+      await for (final chunk in request.stream) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total > 0) onProgress?.call(received / total);
+      }
+    } finally {
+      await sink.close();
+    }
+    onProgress?.call(1.0);
+    return file.path;
   }
 }
