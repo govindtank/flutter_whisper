@@ -79,23 +79,13 @@ class FlutterWhisperPlugin : FlutterPlugin, MethodCallHandler {
 
             val segmentsList = mutableListOf<Map<String, Any>>()
             for (segment in transcriptionResult.segments) {
-                val segmentMap = mutableMapOf<String, Any>()
-                segmentMap["text"] = segment.text
-                segmentMap["start"] = segment.start
-                segmentMap["end"] = segment.end
-                if (segment.words != null) {
-                    val wordsList = mutableListOf<Map<String, Any>>()
-                    for (word in segment.words!!) {
-                        val wordMap = mutableMapOf<String, Any>()
-                        wordMap["word"] = word.word
-                        wordMap["start"] = word.start
-                        wordMap["end"] = word.end
-                        wordMap["probability"] = word.probability
-                        wordsList.add(wordMap)
-                    }
-                    segmentMap["words"] = wordsList
-                }
-                segmentsList.add(segmentMap)
+                segmentsList.add(
+                    mapOf(
+                        "text" to segment.text,
+                        "start" to segment.start,
+                        "end" to segment.end
+                    )
+                )
             }
 
             val resultMap = mutableMapOf<String, Any>()

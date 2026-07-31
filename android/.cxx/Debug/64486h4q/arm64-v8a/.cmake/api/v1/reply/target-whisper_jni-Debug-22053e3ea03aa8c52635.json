@@ -1,0 +1,202 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "/Users/govind/workspace/flutter_whisper/example/build/flutter_whisper/intermediates/cxx/Debug/64486h4q/obj/arm64-v8a/libwhisper.so"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_library",
+			"target_link_libraries",
+			"target_include_directories"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 22,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 27,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 24,
+				"parent" : 0
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++11 -fno-limit-debug-info  -fPIC"
+				},
+				{
+					"backtrace" : 2,
+					"fragment" : "-pthread"
+				},
+				{
+					"fragment" : "-std=gnu++11"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 2,
+					"define" : "GGML_BACKEND_SHARED"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "GGML_SHARED"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "GGML_USE_CPU"
+				},
+				{
+					"define" : "whisper_jni_EXPORTS"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 3,
+					"path" : "/Users/govind/workspace/flutter_whisper/android/src/main/cpp/../../../../third_party/whisper.cpp/include"
+				},
+				{
+					"backtrace" : 3,
+					"path" : "/Users/govind/workspace/flutter_whisper/android/src/main/cpp/../../../../third_party/whisper.cpp/examples"
+				},
+				{
+					"backtrace" : 2,
+					"path" : "/Users/govind/workspace/flutter_whisper/third_party/whisper.cpp/src/."
+				},
+				{
+					"backtrace" : 2,
+					"path" : "/Users/govind/workspace/flutter_whisper/third_party/whisper.cpp/src/../include"
+				},
+				{
+					"backtrace" : 2,
+					"path" : "/Users/govind/workspace/flutter_whisper/third_party/whisper.cpp/ggml/src/../include"
+				}
+			],
+			"language" : "CXX",
+			"sourceIndexes" : 
+			[
+				0
+			],
+			"sysroot" : 
+			{
+				"path" : "/Users/govind/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"
+			}
+		}
+	],
+	"dependencies" : 
+	[
+		{
+			"backtrace" : 2,
+			"id" : "ggml-cpu::@6305c784fb570ebe5b4c"
+		},
+		{
+			"backtrace" : 2,
+			"id" : "ggml::@6305c784fb570ebe5b4c"
+		},
+		{
+			"backtrace" : 2,
+			"id" : "ggml-base::@6305c784fb570ebe5b4c"
+		},
+		{
+			"backtrace" : 2,
+			"id" : "whisper::@5ee8e2f1dcd394e6dc8b"
+		}
+	],
+	"id" : "whisper_jni::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-static-libstdc++ -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "bin/libwhisper.so",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "bin/libggml.so",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "bin/libggml-cpu.so",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "bin/libggml-base.so",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-pthread",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-latomic -lm",
+				"role" : "libraries"
+			}
+		],
+		"language" : "CXX",
+		"sysroot" : 
+		{
+			"path" : "/Users/govind/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"
+		}
+	},
+	"name" : "whisper_jni",
+	"nameOnDisk" : "libwhisper.so",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "whisper_jni.cpp",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "SHARED_LIBRARY"
+}

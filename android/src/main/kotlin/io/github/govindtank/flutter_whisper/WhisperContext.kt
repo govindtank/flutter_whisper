@@ -1,51 +1,63 @@
 package io.github.govindtank.flutter_whisper
 
 import android.util.Log
-import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.FloatBuffer
+import org.json.JSONObject
 
 /**
- * Android wrapper for whisper.cpp using JNI.
- * This is a placeholder - actual implementation requires:
- * 1. whisper.cpp compiled as shared library (.so)
- * 2. JNI bridge from Kotlin to C++
- * 3. whisper.cpp source compiled with Android NDK
+ * Android wrapper for whisper.cpp via JNI.
+ *
+ * Native side is compiled from third_party/whisper.cpp (see
+ * src/main/cpp/CMakeLists.txt). Model must be a ggml-*.bin file;
+ * audio must be WAV (any rate/channels — resampled to 16 kHz mono natively).
  */
 class WhisperContext(private val modelPath: String) {
 
-    private var nativeHandle: Long = 0
-    private var isInitialized = false
+    private var handle: Long = 0
 
     init {
         System.loadLibrary("whisper")
-        nativeHandle = nativeInit(modelPath)
-        if (nativeHandle == 0L) {
-            throw RuntimeException("Failed to initialize whisper context")
+        handle = nativeInit(modelPath)
+        if (handle == 0L) {
+            throw RuntimeException("Failed to initialize whisper context: $modelPath")
         }
-        isInitialized = true
+        Log.i(TAG, "whisper context initialized")
     }
 
-    external fun nativeInit(modelPath: String): Long
-
-    external fun nativeTranscribe(audioPath: String): TranscriptionResult
-
-    external fun nativeFree()
+    private external fun nativeInit(modelPath: String): Long
+    private external fun nativeTranscribe(handle: Long, audioPath: String): String
+    private external fun nativeFree(handle: Long)
 
     fun transcribe(audioPath: String): TranscriptionResult {
-        if (!isInitialized) {
-            throw IllegalStateException("Whisper context not initialized")
+        val json = nativeTranscribe(handle, audioPath)
+        val obj = JSONObject(json)
+        val err = obj.optString("error")
+        if (err.isNotEmpty()) {
+            throw IllegalStateException(err)
         }
-
-        val result = nativeTranscribe(audioPath)
-        return result
+        val segments = obj.getJSONArray("segments")
+        val segList = mutableListOf<Segment>()
+        for (i in 0 until segments.length()) {
+            val s = segments.getJSONObject(i)
+            segList.add(
+                Segment(
+                    text = s.getString("text"),
+                    start = s.getDouble("start"),
+                    end = s.getDouble("end")
+                )
+            )
+        }
+        return TranscriptionResult(
+            fullText = obj.getString("text"),
+            segments = segList,
+            language = obj.optString("language"),
+            duration = obj.optDouble("duration")
+        )
     }
 
     fun close() {
-        if (isInitialized) {
-            nativeFree()
-            isInitialized = false
+        if (handle != 0L) {
+            nativeFree(handle)
+            handle = 0L
         }
     }
 
@@ -55,49 +67,15 @@ class WhisperContext(private val modelPath: String) {
         val segments: List<Segment>,
         val language: String,
         val duration: Double
-    ) {
-        fun toMap(): MutableMap<String, Any> {
-            val segmentsList = mutableListOf<MutableMap<String, Any>>()
-            for (segment in segments) {
-                val segmentMap = mutableMapOf<String, Any>()
-                segmentMap["text"] = segment.text
-                segmentMap["start"] = segment.start
-                segmentMap["end"] = segment.end
-                if (segment.words != null) {
-                    val wordsList = mutableListOf<MutableMap<String, Any>>()
-                    for (word in segment.words!!) {
-                        val wordMap = mutableMapOf<String, Any>()
-                        wordMap["word"] = word.word
-                        wordMap["start"] = word.start
-                        wordMap["end"] = word.end
-                        wordMap["probability"] = word.probability
-                        wordsList.add(wordMap)
-                    }
-                    segmentMap["words"] = wordsList
-                }
-                segmentsList.add(segmentMap)
-            }
-
-            val resultMap = mutableMapOf<String, Any>()
-            resultMap["text"] = fullText
-            resultMap["segments"] = segmentsList
-            resultMap["language"] = language
-            resultMap["duration"] = duration
-            return resultMap
-        }
-    }
+    )
 
     data class Segment(
         val text: String,
         val start: Double,
-        val end: Double,
-        val words: List<Word>? = null
+        val end: Double
     )
 
-    data class Word(
-        val word: String,
-        val start: Double,
-        val end: Double,
-        val probability: Double
-    )
+    companion object {
+        private const val TAG = "FlutterWhisper"
+    }
 }
