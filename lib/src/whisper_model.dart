@@ -17,22 +17,22 @@ enum WhisperModel {
   /// ~1.5 GB, multilingual, highest accuracy
   large;
 
-  /// Approximate file size in bytes.
+  /// Approximate file size in bytes (actual ggml-*.bin from HF).
   int get fileSizeBytes => switch (this) {
-    WhisperModel.tiny => 39 * 1024 * 1024,
-    WhisperModel.base => 75 * 1024 * 1024,
-    WhisperModel.small => 150 * 1024 * 1024,
-    WhisperModel.medium => 300 * 1024 * 1024,
-    WhisperModel.large => 1500 * 1024 * 1024,
+    WhisperModel.tiny => 77691713,
+    WhisperModel.base => 149544538,
+    WhisperModel.small => 483789920,
+    WhisperModel.medium => 1537379430,
+    WhisperModel.large => 3093265266,
   };
 
   /// Human-readable size string.
   String get fileSizeHuman => switch (this) {
-    WhisperModel.tiny => '39 MB',
-    WhisperModel.base => '75 MB',
-    WhisperModel.small => '150 MB',
-    WhisperModel.medium => '300 MB',
-    WhisperModel.large => '1.5 GB',
+    WhisperModel.tiny => '74 MB',
+    WhisperModel.base => '143 MB',
+    WhisperModel.small => '461 MB',
+    WhisperModel.medium => '1.4 GB',
+    WhisperModel.large => '2.9 GB',
   };
 
   /// Whether model supports non-English languages.

@@ -4,7 +4,7 @@ import 'package:flutter_whisper/flutter_whisper.dart';
 
 void main() {
   test('WhisperModel sizes', () {
-    expect(WhisperModel.tiny.fileSizeBytes, 39 * 1024 * 1024);
+    expect(WhisperModel.tiny.fileSizeBytes, 77691713);
     expect(WhisperModel.large.isMultilingual, isTrue);
     expect(WhisperModel.tiny.isMultilingual, isFalse);
   });

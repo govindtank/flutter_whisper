@@ -23,5 +23,6 @@ enum WhisperErrorCode {
   engineNotInitialized,
   sessionFailed,
   cancelled,
+  downloadPaused,
   unknown,
 }

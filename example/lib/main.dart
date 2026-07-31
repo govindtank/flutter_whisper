@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_whisper/flutter_whisper.dart';
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_whisper/flutter_whisper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const WhisperDemoApp());
 
@@ -14,11 +19,14 @@ class WhisperDemoApp extends StatelessWidget {
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,
+        brightness: Brightness.dark,
       ),
       home: const WhisperDemoScreen(),
     );
   }
 }
+
+enum AppState { idle, downloading, paused, initializing, ready, transcribing, error }
 
 class WhisperDemoScreen extends StatefulWidget {
   const WhisperDemoScreen({super.key});
@@ -28,100 +36,291 @@ class WhisperDemoScreen extends StatefulWidget {
 }
 
 class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
+  static const _onboardingKey = 'onboarding_done';
+
   final Whisper _whisper = Whisper();
-  WhisperModel _selectedModel = WhisperModel.tiny;
-  bool _isInitialized = false;
-  bool _isTranscribing = false;
-  String _result = '';
-  String _status = 'Not initialized';
-  double _progress = 0.0;
+
+  WhisperModel _selected = WhisperModel.tiny;
+  AppState _state = AppState.idle;
+  String _status = '';
+  String _hint = '';
+  WhisperDownloadProgress? _dl;
+  String _errorDetail = '';
   File? _audioFile;
+  TranscriptionResult? _result;
+  bool _onboardingDone = false;
+  late Map<WhisperModel, bool> _cached = {for (final m in WhisperModel.values) m: false};
 
   @override
-  void dispose() {
-    _whisper.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadOnboarding();
+    _refreshCached();
+    _setIdle();
   }
+
+  Future<void> _loadOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _onboardingDone = prefs.getBool(_onboardingKey) ?? false);
+  }
+
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingKey, true);
+    setState(() => _onboardingDone = true);
+  }
+
+  Future<void> _refreshCached() async {
+    try {
+      final dir = await _whisperSupportDir();
+      final models = Directory('$dir/models');
+      setState(() {
+        _cached = {
+          for (final m in WhisperModel.values)
+            m: File('${models.path}/${m.name}.bin').existsSync(),
+        };
+      });
+    } catch (_) {}
+  }
+
+  Future<String> _whisperSupportDir() async {
+    // Same path the plugin uses (application support directory).
+    final path = await _appSupportPath();
+    return path;
+  }
+
+  Future<String> _appSupportPath() async {
+    return (await getApplicationSupportDirectory()).path;
+  }
+
+  // ---- State transitions ----
+
+  void _setIdle() {
+    setState(() {
+      _state = AppState.idle;
+      _status = 'Not initialized';
+      _hint = 'Pick a model, then download. Transcription runs on your phone.';
+      _dl = null;
+    });
+  }
+
+  void _setError(String title, String detail) {
+    setState(() {
+      _state = AppState.error;
+      _status = title;
+      _hint = 'Fix the issue, then retry.';
+      _errorDetail = detail;
+      _dl = null;
+    });
+  }
+
+  String _friendlyError(Object e) {
+    if (e is PlatformException) {
+      switch (e.code) {
+        case 'NATIVE_NOT_BUILT':
+          return 'Native whisper engine not installed in this dev build.';
+        case 'MODEL_NOT_FOUND':
+          return 'Model file missing. Try downloading again.';
+        case 'NOT_INITIALIZED':
+          return 'Engine not initialized yet.';
+      }
+      return e.message ?? e.code;
+    }
+    if (e is WhisperError) {
+      switch (e.code) {
+        case WhisperErrorCode.modelDownloadFailed:
+          return 'Download failed. Check your network, then retry — it resumes where it stopped.';
+        case WhisperErrorCode.cancelled:
+          return 'Download cancelled.';
+        case WhisperErrorCode.downloadPaused:
+          return 'Download paused.';
+        default:
+          return e.message;
+      }
+    }
+    return '$e';
+  }
+
+  // ---- Actions ----
 
   Future<void> _initialize() async {
     setState(() {
-      _status = 'Downloading ${_selectedModel.name}...';
-      _progress = 0.0;
+      _state = AppState.downloading;
+      _status = 'Downloading ${_selected.name}…';
+      _hint = 'You can leave the app — download resumes where it stopped.';
+      _dl = null;
     });
-
     try {
-      await Whisper().initialize(
-        model: _selectedModel,
+      await _whisper.initialize(
+        model: _selected,
         onProgress: (p) {
+          if (!mounted) return;
           setState(() {
-            _progress = p;
-            if (p < 1.0) {
-              _status = 'Downloading ${_selectedModel.name} '
-                  '${(p * 100).toStringAsFixed(0)}%';
+            _dl = p;
+            if (p.fraction < 1.0) {
+              _status = 'Downloading ${_selected.name} '
+                  '${(p.fraction * 100).toStringAsFixed(0)}%';
             } else {
-              _status = 'Initializing...';
+              _status = 'Initializing ${_selected.name}…';
             }
           });
         },
       );
+      if (!mounted) return;
       setState(() {
-        _isInitialized = true;
-        _status = 'Ready with ${_selectedModel.name} (${_selectedModel.fileSizeHuman})';
+        _state = AppState.ready;
+        _status = 'Ready — ${_selected.name} loaded';
+        _hint = 'Transcribe a file, or try the sample below.';
+        _dl = null;
       });
+      _refreshCached();
     } catch (e) {
+      if (!mounted) return;
+      if (e is WhisperError && e.code == WhisperErrorCode.downloadPaused) {
+        setState(() {
+          _state = AppState.paused;
+          _status = 'Paused — ${_selected.name} '
+              '${_dl != null ? '${(_dl!.fraction * 100).toStringAsFixed(0)}%' : ''}';
+          _hint = 'Resume anytime — nothing is lost.';
+        });
+      } else if (e is WhisperError && e.code == WhisperErrorCode.cancelled) {
+        _setIdle();
+      } else {
+        _setError(_friendlyError(e), '$e');
+      }
+    }
+  }
+
+  Future<void> _resumeDownload() async {
+    setState(() {
+      _state = AppState.downloading;
+      _status = 'Resuming download…';
+      _hint = 'Picking up where it stopped.';
+    });
+    try {
+      await _whisper.resumeDownload();
+      if (!mounted) return;
       setState(() {
-        _progress = 0.0;
-        _status = 'Error: $e';
+        _state = AppState.ready;
+        _status = 'Ready — ${_selected.name} loaded';
+        _hint = 'Transcribe a file, or try the sample below.';
+        _dl = null;
       });
+      _refreshCached();
+    } catch (e) {
+      if (!mounted) return;
+      _setError(_friendlyError(e), '$e');
     }
   }
 
   Future<void> _pickAudioFile() async {
-    // In real app, use file_picker
-    setState(() => _status = 'File picker not implemented in demo');
+    final picked = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (picked == null || picked.files.isEmpty) return;
+    setState(() {
+      _audioFile = File(picked.files.first.path!);
+      _result = null;
+    });
+  }
+
+  Future<void> _trySample() async {
+    setState(() => _status = 'Loading sample…');
+    try {
+      final bytes = await rootBundle.load('assets/sample.wav');
+      final dir = await _appSupportPath();
+      final sample = File('$dir/sample.wav');
+      await sample.writeAsBytes(bytes.buffer.asUint8List());
+      setState(() {
+        _audioFile = sample;
+        _result = null;
+        _status = 'Sample ready — transcribe it.';
+      });
+    } catch (e) {
+      _setError('Could not load sample', '$e');
+    }
   }
 
   Future<void> _transcribe() async {
-    if (!_isInitialized || _audioFile == null) return;
-
+    final file = _audioFile;
+    if (file == null || _state != AppState.ready) return;
     setState(() {
-      _isTranscribing = true;
-      _result = '';
-      _progress = 0.0;
+      _state = AppState.transcribing;
+      _status = 'Transcribing…';
+      _hint = 'On-device — no data leaves your phone.';
+      _result = null;
     });
-
     try {
-      final result = await Whisper().transcribeFile(_audioFile!.path);
+      final result = await _whisper.transcribeFile(file.path);
+      if (!mounted) return;
       setState(() {
-        _result = result.text;
-        _isTranscribing = false;
-        _progress = 1.0;
+        _state = AppState.ready;
+        _status = 'Done';
+        _hint = 'Transcribe another file, or try the sample.';
+        _result = result;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _isTranscribing = false;
-        _result = 'Error: $e';
+        _state = AppState.ready;
+        _status = 'Transcription failed';
+        _hint = _friendlyError(e);
       });
     }
   }
 
+  void _selectModel(WhisperModel m) {
+    if (m == _selected) return;
+    setState(() => _selected = m);
+    if (_state == AppState.ready) {
+      _showSwitchConfirm(m);
+    } else {
+      _setIdle();
+    }
+  }
+
+  void _showSwitchConfirm(WhisperModel m) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Switch model?'),
+        content: Text('Load ${m.name.toUpperCase()} (${m.fileSizeHuman})? '
+            'Current session will reload.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _initialize();
+            },
+            child: const Text('Switch'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- UI ----
+
   @override
   Widget build(BuildContext context) {
+    if (!_onboardingDone) {
+      return OnboardingScreen(onDone: _finishOnboarding);
+    }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flutter Whisper Demo'),
+        title: const Text('Flutter Whisper'),
         actions: [
-          if (_isInitialized)
-            PopupMenuButton<WhisperModel>(
-              initialValue: _selectedModel,
-              onSelected: (model) {
-                setState(() => _selectedModel = model);
-                _initialize();
+          if (_state == AppState.ready || _state == AppState.transcribing)
+            IconButton(
+              tooltip: 'Reset',
+              icon: const Icon(Icons.refresh),
+              onPressed: () async {
+                await _whisper.dispose();
+                _setIdle();
+                _refreshCached();
               },
-              itemBuilder: (context) => WhisperModel.values.map((m) => PopupMenuItem(
-                value: m,
-                child: Text('${m.name} (${m.fileSizeHuman})'),
-              )).toList(),
             ),
         ],
       ),
@@ -130,72 +329,371 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Status', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text(_status),
-                    if (_progress > 0) ...[
-                      const SizedBox(height: 12),
-                      LinearProgressIndicator(value: _progress),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+            _buildCapabilityChips(),
             const SizedBox(height: 16),
-            if (!_isInitialized) ...[
-              FilledButton.icon(
-                onPressed: _initialize,
-                icon: const Icon(Icons.download),
-                label: Text('Download & Initialize ${_selectedModel.name}'),
-              ),
-            ] else ...[
-              FilledButton.icon(
-                onPressed: _pickAudioFile,
-                icon: const Icon(Icons.file_open),
-                label: const Text('Pick Audio File'),
-              ),
-              const SizedBox(height: 12),
-              if (_audioFile != null) ...[
-                FilledButton.icon(
-                  onPressed: _isTranscribing ? null : _transcribe,
-                  icon: _isTranscribing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.mic),
-                  label: Text(_isTranscribing ? 'Transcribing...' : 'Transcribe'),
-                ),
-              ],
+            _buildStatusCard(),
+            if (_state == AppState.ready || _state == AppState.transcribing) ...[
+              const SizedBox(height: 16),
+              _buildActions(),
+            ],
+            if (_result != null) ...[
+              const SizedBox(height: 16),
+              _buildResultCard(),
             ],
             const SizedBox(height: 24),
-            if (_result.isNotEmpty) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Transcription', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      SelectableText(_result),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            const Divider(),
-            Text('Models', style: Theme.of(context).textTheme.titleMedium),
-            ...WhisperModel.values.map((m) => ListTile(
-              title: Text(m.name.toUpperCase()),
-              subtitle: Text('${m.fileSizeHuman} • ${m.isMultilingual ? 'Multilingual' : 'English only'}'),
-              leading: Icon(m == WhisperModel.tiny ? Icons.flash_on :
-                           m == WhisperModel.large ? Icons.verified : Icons.mic),
-            )),
+            _buildModelSelector(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCapabilityChips() {
+    return const Wrap(
+      spacing: 8,
+      children: [
+        Chip(avatar: Icon(Icons.cloud_off, size: 16), label: Text('Offline')),
+        Chip(avatar: Icon(Icons.smartphone, size: 16), label: Text('On-device')),
+        Chip(avatar: Icon(Icons.lock_outline, size: 16), label: Text('No uploads')),
+        Chip(avatar: Icon(Icons.language, size: 16), label: Text('Multilingual')),
+      ],
+    );
+  }
+
+  Widget _buildStatusCard() {
+    final (icon, color) = switch (_state) {
+      AppState.idle => (Icons.mic_none, Colors.blueGrey),
+      AppState.downloading || AppState.paused => (Icons.download, Colors.blue),
+      AppState.initializing => (Icons.settings, Colors.blue),
+      AppState.ready => (Icons.check_circle, Colors.green),
+      AppState.transcribing => (Icons.graphic_eq, Colors.teal),
+      AppState.error => (Icons.error, Colors.red),
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 12),
+                Expanded(child: Text(_status, style: Theme.of(context).textTheme.titleMedium)),
+              ],
+            ),
+            if (_state == AppState.downloading && _dl != null) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: _dl!.fraction.clamp(0.0, 1.0)),
+              const SizedBox(height: 8),
+              Text(_formatProgress(_dl!), style: Theme.of(context).textTheme.bodySmall),
+            ],
+            if (_state == AppState.downloading && _dl == null) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(),
+            ],
+            const SizedBox(height: 8),
+            Text(_hint, style: Theme.of(context).textTheme.bodySmall),
+            if (_state == AppState.downloading) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: _whisper.pauseDownload,
+                    icon: const Icon(Icons.pause),
+                    label: const Text('Pause'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Cancel download',
+                    onPressed: _whisper.cancel,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ],
+            if (_state == AppState.paused) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _resumeDownload,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Resume download'),
+              ),
+            ],
+            if (_state == AppState.error) ...[
+              const SizedBox(height: 12),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Details', style: TextStyle(fontSize: 13)),
+                children: [
+                  SelectableText(_errorDetail, style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: _initialize,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatProgress(WhisperDownloadProgress p) {
+    final received = _fmtBytes(p.receivedBytes);
+    final total = _fmtBytes(p.totalBytes);
+    final speed = p.speedBytesPerSec != null ? '${_fmtBytes(p.speedBytesPerSec!.round())}/s' : '';
+    final eta = p.eta != null ? ' • ETA ${_fmtDuration(p.eta!)}' : '';
+    return '$received / $total$speed$eta';
+  }
+
+  static String _fmtBytes(int b) {
+    if (b >= 1024 * 1024 * 1024) return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    if (b >= 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (b >= 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '$b B';
+  }
+
+  static String _fmtDuration(Duration d) {
+    final s = d.inSeconds;
+    if (s >= 3600) return '${s ~/ 3600}h ${(s % 3600) ~/ 60}m';
+    if (s >= 60) return '${s ~/ 60}m ${s % 60}s';
+    return '${s}s';
+  }
+
+  Widget _buildActions() {
+    final busy = _state == AppState.transcribing;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Transcribe', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : _pickAudioFile,
+                    icon: const Icon(Icons.file_open),
+                    label: const Text('Pick audio'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : _trySample,
+                    icon: const Icon(Icons.audio_file),
+                    label: const Text('Try sample'),
+                  ),
+                ),
+              ],
+            ),
+            if (_audioFile != null) ...[
+              const SizedBox(height: 8),
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.music_note),
+                title: Text(_audioFile!.path.split('/').last,
+                    overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() => _audioFile = null),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: (_audioFile == null || busy) ? null : _transcribe,
+              icon: busy
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.mic),
+              label: Text(busy ? 'Transcribing…' : 'Transcribe'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard() {
+    final r = _result!;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Result', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (r.language.isNotEmpty)
+                  Chip(label: Text(r.language), visualDensity: VisualDensity.compact),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SelectableText(r.text, style: const TextStyle(fontSize: 15, height: 1.4)),
+            if (r.segments.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Segments', style: TextStyle(fontSize: 13)),
+                children: [
+                  for (final s in r.segments)
+                    ListTile(
+                      dense: true,
+                      leading: Text(
+                        '[${s.start.toStringAsFixed(1)}-${s.end.toStringAsFixed(1)}s]',
+                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      ),
+                      title: Text(s.text, style: const TextStyle(fontSize: 13)),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Copy text',
+                icon: const Icon(Icons.copy),
+                onPressed: () => Clipboard.setData(ClipboardData(text: r.text)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Models', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        for (final m in WhisperModel.values)
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: m == _selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: ListTile(
+              onTap: () => _selectModel(m),
+              leading: Icon(
+                m == WhisperModel.tiny
+                    ? Icons.flash_on
+                    : m == WhisperModel.large
+                        ? Icons.verified
+                        : Icons.mic,
+                color: m == _selected ? Theme.of(context).colorScheme.primary : null,
+              ),
+              title: Text(m.name.toUpperCase()),
+              subtitle: Text('${m.fileSizeHuman} • ${m.isMultilingual ? 'Multilingual' : 'English only'}'),
+              trailing: _cached[m] == true
+                  ? const Chip(
+                      avatar: Icon(Icons.check, size: 14),
+                      label: Text('Downloaded'),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  : Radio<WhisperModel>(
+                      value: m,
+                      groupValue: _selected,
+                      onChanged: (_) => _selectModel(m),
+                    ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// First-run onboarding — teaches what the app does.
+class OnboardingScreen extends StatelessWidget {
+  const OnboardingScreen({super.key, required this.onDone});
+
+  final Future<void> Function() onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: PageView(
+          children: [
+            _Slide(
+              icon: Icons.cloud_off,
+              title: 'Transcribe offline',
+              body: 'Speech-to-text on your phone. No cloud, no uploads — '
+                  'works without internet.',
+              onDone: onDone,
+            ),
+            _Slide(
+              icon: Icons.linear_scale,
+              title: 'Pick a model',
+              body: '5 sizes from 74 MB (fast) to 2.9 GB (most accurate). '
+                  'Smaller = faster, bigger = better.',
+              onDone: onDone,
+            ),
+            _Slide(
+              icon: Icons.download_done,
+              title: 'Download once',
+              body: 'The model downloads to your phone, then everything runs '
+                  'locally. Downloads resume — kill the app and pick up '
+                  'where you left off.',
+              isLast: true,
+              onDone: onDone,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Slide extends StatelessWidget {
+  const _Slide({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.onDone,
+    this.isLast = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final bool isLast;
+  final Future<void> Function() onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(icon, size: 96, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 32),
+          Text(title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          Text(body, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 48),
+          FilledButton(
+            onPressed: onDone,
+            child: Text(isLast ? 'Get started' : 'Skip'),
+          ),
+        ],
       ),
     );
   }

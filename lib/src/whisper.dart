@@ -1,12 +1,3 @@
-/// Main entry point for flutter_whisper.
-///
-/// Usage:
-/// ```dart
-/// final whisper = Whisper();
-/// await whisper.initialize(model: WhisperModel.tiny);
-/// final result = await whisper.transcribeFile('recording.wav');
-/// print(result.text);
-/// ```
 part of 'package:flutter_whisper/flutter_whisper.dart';
 
 /// Main entry point for Flutter Whisper.
@@ -26,6 +17,14 @@ class Whisper {
   WhisperEngine? _engine;
   WhisperModel? _loadedModel;
   bool _isInitialized = false;
+  WhisperDownloader? _downloader;
+  String? _downloadDir;
+
+  // Last init params — used by resumeDownload().
+  WhisperModel? _lastModel;
+  WhisperOptions _lastOptions = const WhisperOptions();
+  WhisperDownloadConfig _lastConfig = const WhisperDownloadConfig();
+  void Function(WhisperDownloadProgress)? _lastOnProgress;
 
   /// Whether the engine is initialized and ready.
   bool get isInitialized => _isInitialized;
@@ -37,19 +36,34 @@ class Whisper {
   ///
   /// [model] - Model to load (default: tiny)
   /// [options] - Transcription options (optional)
-  /// [onProgress] - Download progress callback (0.0-1.0), fires while
-  ///                the model downloads on first use.
+  /// [downloadConfig] - Download behavior (resume, retries, mirror, integrity)
+  /// [onProgress] - Download progress callback, fires while the model
+  ///                downloads on first use.
   ///
   /// Throws [WhisperError] on failure.
   Future<void> initialize({
     WhisperModel model = WhisperModel.tiny,
     WhisperOptions options = const WhisperOptions(),
-    void Function(double)? onProgress,
+    WhisperDownloadConfig downloadConfig = const WhisperDownloadConfig(),
+    void Function(WhisperDownloadProgress)? onProgress,
+    @visibleForTesting http.Client? httpClient,
+    @visibleForTesting String? downloadDirectory,
   }) async {
     if (_isInitialized && _loadedModel == model) return;
 
-    // Get model file path (downloads if not cached)
-    final modelPath = await _ensureModel(model, onProgress);
+    _lastModel = model;
+    _lastOptions = options;
+    _lastConfig = downloadConfig;
+    _lastOnProgress = onProgress;
+    _downloadDir ??= (await getApplicationSupportDirectory()).path;
+
+    // Get model file path (downloads if not cached, resumes if partial).
+    final modelPath = await _ensureModel(
+      model,
+      onProgress: onProgress,
+      config: downloadConfig,
+      httpClient: httpClient,
+    );
 
     // Create platform engine
     _engine = _createEngine();
@@ -63,6 +77,27 @@ class Whisper {
       _loadedModel = null;
       rethrow;
     }
+  }
+
+  /// Pause an in-flight model download. Partial data is kept on disk;
+  /// call [resumeDownload] to continue.
+  void pauseDownload() => _downloader?.pause();
+
+  /// Resume a paused/interrupted model download.
+  Future<void> resumeDownload() async {
+    if (_lastModel == null || _isInitialized) return;
+    await initialize(
+      model: _lastModel!,
+      options: _lastOptions,
+      downloadConfig: _lastConfig,
+      onProgress: _lastOnProgress,
+    );
+  }
+
+  /// Cancel any ongoing download or transcription.
+  void cancel() {
+    _downloader?.cancel();
+    _engine?.cancel();
   }
 
   /// Transcribe an audio file.
@@ -103,13 +138,9 @@ class Whisper {
     return _engine!.streamFile(audioPath, options: options);
   }
 
-  /// Cancel any ongoing transcription.
-  void cancel() {
-    _engine?.cancel();
-  }
-
   /// Dispose resources.
   Future<void> dispose() async {
+    _downloader?.cancel();
     await _engine?.dispose();
     _engine = null;
     _isInitialized = false;
@@ -132,36 +163,18 @@ class Whisper {
 
   /// Ensure model is available locally, downloading if needed.
   Future<String> _ensureModel(
-    WhisperModel model,
-    void Function(double)? onProgress,
-  ) async {
-    final dir = await getApplicationSupportDirectory();
-    final file = File('${dir.path}/models/${model.name}.bin');
-    if (file.existsSync() && file.lengthSync() > 0) return file.path;
-
-    final url = model.downloadUrl;
-    final request = await http.Client().send(http.Request('GET', Uri.parse(url)));
-    if (request.statusCode != 200) {
-      throw WhisperError(
-        'Model download failed: HTTP ${request.statusCode}',
-        WhisperErrorCode.modelDownloadFailed,
-      );
-    }
-
-    file.parent.createSync(recursive: true);
-    final total = request.contentLength ?? 0;
-    final sink = file.openWrite();
-    var received = 0;
+    WhisperModel model, {
+    required void Function(WhisperDownloadProgress)? onProgress,
+    required WhisperDownloadConfig config,
+    http.Client? httpClient,
+  }) async {
+    final dir = _downloadDir ?? (await getApplicationSupportDirectory()).path;
+    final downloader = WhisperDownloader(directory: dir, client: httpClient);
+    _downloader = downloader;
     try {
-      await for (final chunk in request.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) onProgress?.call(received / total);
-      }
+      return await downloader.download(model, config: config, onProgress: onProgress);
     } finally {
-      await sink.close();
+      if (identical(_downloader, downloader)) _downloader = null;
     }
-    onProgress?.call(1.0);
-    return file.path;
   }
 }
