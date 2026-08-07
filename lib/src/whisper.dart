@@ -114,7 +114,8 @@ class Whisper {
     void Function(int)? onProgress,
   }) async {
     _assertInitialized();
-    return _engine!.transcribeFile(audioPath, options: options, onProgress: onProgress);
+    return _engine!
+        .transcribeFile(audioPath, options: options, onProgress: onProgress);
   }
 
   /// Start recording from the microphone (16 kHz mono WAV on disk).
@@ -165,7 +166,8 @@ class Whisper {
     final downloader = WhisperDownloader(directory: dir, client: httpClient);
     _downloader = downloader;
     try {
-      return await downloader.download(model, config: config, onProgress: onProgress);
+      return await downloader.download(model,
+          config: config, onProgress: onProgress);
     } finally {
       if (identical(_downloader, downloader)) _downloader = null;
     }

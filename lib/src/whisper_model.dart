@@ -19,25 +19,27 @@ enum WhisperModel {
 
   /// Approximate file size in bytes (actual ggml-*.bin from HF).
   int get fileSizeBytes => switch (this) {
-    WhisperModel.tiny => 77691713,
-    WhisperModel.base => 149544538,
-    WhisperModel.small => 483789920,
-    WhisperModel.medium => 1537379430,
-    WhisperModel.large => 3093265266,
-  };
+        WhisperModel.tiny => 77691713,
+        WhisperModel.base => 149544538,
+        WhisperModel.small => 483789920,
+        WhisperModel.medium => 1537379430,
+        WhisperModel.large => 3093265266,
+      };
 
   /// Human-readable size string.
   String get fileSizeHuman => switch (this) {
-    WhisperModel.tiny => '74 MB',
-    WhisperModel.base => '143 MB',
-    WhisperModel.small => '461 MB',
-    WhisperModel.medium => '1.4 GB',
-    WhisperModel.large => '2.9 GB',
-  };
+        WhisperModel.tiny => '74 MB',
+        WhisperModel.base => '143 MB',
+        WhisperModel.small => '461 MB',
+        WhisperModel.medium => '1.4 GB',
+        WhisperModel.large => '2.9 GB',
+      };
 
   /// Whether model supports non-English languages.
-  bool get isMultilingual => this != WhisperModel.tiny && this != WhisperModel.base;
+  bool get isMultilingual =>
+      this != WhisperModel.tiny && this != WhisperModel.base;
 
   /// Download URL for the model.
-  String get downloadUrl => 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$name.bin';
+  String get downloadUrl =>
+      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$name.bin';
 }

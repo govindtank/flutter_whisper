@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use — Radio groupValue/onChanged deprecated
+// in Flutter 3.35+; RadioGroup ancestor not available on the min supported SDK.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -30,7 +32,16 @@ class WhisperDemoApp extends StatelessWidget {
   }
 }
 
-enum AppState { idle, downloading, paused, initializing, ready, recording, transcribing, error }
+enum AppState {
+  idle,
+  downloading,
+  paused,
+  initializing,
+  ready,
+  recording,
+  transcribing,
+  error
+}
 
 class WhisperDemoScreen extends StatefulWidget {
   const WhisperDemoScreen({super.key});
@@ -53,7 +64,9 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
   File? _audioFile;
   TranscriptionResult? _result;
   bool _onboardingDone = false;
-  late Map<WhisperModel, bool> _cached = {for (final m in WhisperModel.values) m: false};
+  late Map<WhisperModel, bool> _cached = {
+    for (final m in WhisperModel.values) m: false
+  };
 
   // Recording + transcription progress.
   bool _recording = false;
@@ -284,7 +297,8 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
       _transcribeProgress = 0;
       _result = null;
     });
-    final options = _language == 'auto' ? null : WhisperOptions(language: _language);
+    final options =
+        _language == 'auto' ? null : WhisperOptions(language: _language);
     try {
       final result = await _whisper.transcribeFile(
         file.path,
@@ -522,9 +536,14 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
       spacing: 8,
       children: [
         Chip(avatar: Icon(Icons.cloud_off, size: 16), label: Text('Offline')),
-        Chip(avatar: Icon(Icons.smartphone, size: 16), label: Text('On-device')),
-        Chip(avatar: Icon(Icons.lock_outline, size: 16), label: Text('No uploads')),
-        Chip(avatar: Icon(Icons.language, size: 16), label: Text('Multilingual')),
+        Chip(
+            avatar: Icon(Icons.smartphone, size: 16), label: Text('On-device')),
+        Chip(
+            avatar: Icon(Icons.lock_outline, size: 16),
+            label: Text('No uploads')),
+        Chip(
+            avatar: Icon(Icons.language, size: 16),
+            label: Text('Multilingual')),
       ],
     );
   }
@@ -549,14 +568,17 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
               children: [
                 Icon(icon, color: color),
                 const SizedBox(width: 12),
-                Expanded(child: Text(_status, style: Theme.of(context).textTheme.titleMedium)),
+                Expanded(
+                    child: Text(_status,
+                        style: Theme.of(context).textTheme.titleMedium)),
               ],
             ),
             if (_state == AppState.downloading && _dl != null) ...[
               const SizedBox(height: 12),
               LinearProgressIndicator(value: _dl!.fraction.clamp(0.0, 1.0)),
               const SizedBox(height: 8),
-              Text(_formatProgress(_dl!), style: Theme.of(context).textTheme.bodySmall),
+              Text(_formatProgress(_dl!),
+                  style: Theme.of(context).textTheme.bodySmall),
             ],
             if (_state == AppState.downloading && _dl == null) ...[
               const SizedBox(height: 12),
@@ -573,7 +595,8 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.fiber_manual_record, color: Colors.red, size: 14),
+                  const Icon(Icons.fiber_manual_record,
+                      color: Colors.red, size: 14),
                   const SizedBox(width: 8),
                   Text(
                     _fmtDuration(Duration(seconds: _recordSeconds)),
@@ -616,7 +639,8 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                 tilePadding: EdgeInsets.zero,
                 title: const Text('Details', style: TextStyle(fontSize: 13)),
                 children: [
-                  SelectableText(_errorDetail, style: const TextStyle(fontSize: 12)),
+                  SelectableText(_errorDetail,
+                      style: const TextStyle(fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -635,13 +659,17 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
   String _formatProgress(WhisperDownloadProgress p) {
     final received = _fmtBytes(p.receivedBytes);
     final total = _fmtBytes(p.totalBytes);
-    final speed = p.speedBytesPerSec != null ? '${_fmtBytes(p.speedBytesPerSec!.round())}/s' : '';
+    final speed = p.speedBytesPerSec != null
+        ? '${_fmtBytes(p.speedBytesPerSec!.round())}/s'
+        : '';
     final eta = p.eta != null ? ' • ETA ${_fmtDuration(p.eta!)}' : '';
     return '$received / $total$speed$eta';
   }
 
   static String _fmtBytes(int b) {
-    if (b >= 1024 * 1024 * 1024) return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    if (b >= 1024 * 1024 * 1024) {
+      return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    }
     if (b >= 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
     if (b >= 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
     return '$b B';
@@ -665,13 +693,15 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
           children: [
             Row(
               children: [
-                Text('Transcribe', style: Theme.of(context).textTheme.titleMedium),
+                Text('Transcribe',
+                    style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 DropdownButton<String>(
                   value: _language,
                   underline: const SizedBox.shrink(),
                   items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto language')),
+                    DropdownMenuItem(
+                        value: 'auto', child: Text('Auto language')),
                     DropdownMenuItem(value: 'en', child: Text('English')),
                     DropdownMenuItem(value: 'hi', child: Text('Hindi')),
                     DropdownMenuItem(value: 'es', child: Text('Spanish')),
@@ -764,11 +794,14 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                 Text('Result', style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 if (r.language.isNotEmpty)
-                  Chip(label: Text(r.language), visualDensity: VisualDensity.compact),
+                  Chip(
+                      label: Text(r.language),
+                      visualDensity: VisualDensity.compact),
               ],
             ),
             const SizedBox(height: 8),
-            SelectableText(r.text, style: const TextStyle(fontSize: 15, height: 1.4)),
+            SelectableText(r.text,
+                style: const TextStyle(fontSize: 15, height: 1.4)),
             if (r.segments.isNotEmpty) ...[
               const SizedBox(height: 8),
               ExpansionTile(
@@ -780,7 +813,8 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                       dense: true,
                       leading: Text(
                         '[${s.start.toStringAsFixed(1)}-${s.end.toStringAsFixed(1)}s]',
-                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                        style: const TextStyle(
+                            fontSize: 11, fontFamily: 'monospace'),
                       ),
                       title: Text(s.text, style: const TextStyle(fontSize: 13)),
                     ),
@@ -796,7 +830,8 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                   IconButton(
                     tooltip: 'Copy text',
                     icon: const Icon(Icons.copy),
-                    onPressed: () => Clipboard.setData(ClipboardData(text: r.text)),
+                    onPressed: () =>
+                        Clipboard.setData(ClipboardData(text: r.text)),
                   ),
                   IconButton(
                     tooltip: 'Share',
@@ -826,7 +861,9 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                color: m == _selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                color: m == _selected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -838,10 +875,13 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
                     : m == WhisperModel.large
                         ? Icons.verified
                         : Icons.mic,
-                color: m == _selected ? Theme.of(context).colorScheme.primary : null,
+                color: m == _selected
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
               title: Text(m.name.toUpperCase()),
-              subtitle: Text('${m.fileSizeHuman} • ${m.isMultilingual ? 'Multilingual' : 'English only'}'),
+              subtitle: Text(
+                  '${m.fileSizeHuman} • ${m.isMultilingual ? 'Multilingual' : 'English only'}'),
               trailing: _buildModelAction(m),
             ),
           ),
@@ -950,9 +990,13 @@ class _Slide extends StatelessWidget {
         children: [
           Icon(icon, size: 96, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 32),
-          Text(title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+          Text(title,
+              style: Theme.of(context).textTheme.headlineSmall,
+              textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          Text(body, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
+          Text(body,
+              style: Theme.of(context).textTheme.bodyLarge,
+              textAlign: TextAlign.center),
           const SizedBox(height: 48),
           FilledButton(
             onPressed: onDone,
@@ -966,7 +1010,8 @@ class _Slide extends StatelessWidget {
 
 /// Saved transcriptions (JSONL history).
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key, required this.history, required this.onClear});
+  const HistoryScreen(
+      {super.key, required this.history, required this.onClear});
 
   final List<Map<String, dynamic>> history;
   final VoidCallback onClear;
@@ -995,10 +1040,12 @@ class HistoryScreen extends StatelessWidget {
               itemBuilder: (context, i) {
                 final e = history[i];
                 final text = e['text'] as String;
-                final ts = (e['ts'] as String).replaceFirst('T', ' ').split('.').first;
+                final ts =
+                    (e['ts'] as String).replaceFirst('T', ' ').split('.').first;
                 return ListTile(
                   leading: const Icon(Icons.transcribe),
-                  title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  title:
+                      Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
                   subtitle: Text('${e['language']} • $ts'),
                   onTap: () => showDialog<void>(
                     context: context,
@@ -1015,7 +1062,8 @@ class HistoryScreen extends StatelessWidget {
                         IconButton(
                           tooltip: 'Copy',
                           icon: const Icon(Icons.copy),
-                          onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+                          onPressed: () =>
+                              Clipboard.setData(ClipboardData(text: text)),
                         ),
                       ],
                     ),

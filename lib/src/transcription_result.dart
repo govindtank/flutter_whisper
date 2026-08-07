@@ -43,7 +43,9 @@ class TranscriptionSegment {
       text: map['text'] as String? ?? '',
       start: (map['start'] as num?)?.toDouble() ?? 0.0,
       end: (map['end'] as num?)?.toDouble() ?? 0.0,
-      words: (map['words'] as List?)?.map((w) => WordTimestamp.fromMap(Map<String, dynamic>.from(w))).toList(),
+      words: (map['words'] as List?)
+          ?.map((w) => WordTimestamp.fromMap(Map<String, dynamic>.from(w)))
+          .toList(),
     );
   }
 }
@@ -68,7 +70,8 @@ class TranscriptionResult {
       language: map['language'] as String? ?? '',
       duration: (map['duration'] as num?)?.toDouble() ?? 0.0,
       segments: (map['segments'] as List?)
-              ?.map((s) => TranscriptionSegment.fromMap(Map<String, dynamic>.from(s)))
+              ?.map((s) =>
+                  TranscriptionSegment.fromMap(Map<String, dynamic>.from(s)))
               .toList() ??
           const [],
     );

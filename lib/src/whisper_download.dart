@@ -81,7 +81,8 @@ class WhisperDownloader {
 
     while (true) {
       final start = part.existsSync() ? part.lengthSync() : 0;
-      var sink = part.openWrite(mode: start > 0 ? FileMode.append : FileMode.write);
+      var sink =
+          part.openWrite(mode: start > 0 ? FileMode.append : FileMode.write);
       try {
         final total = await _attempt(
           urls[attempts % urls.length],

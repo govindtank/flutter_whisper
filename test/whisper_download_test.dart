@@ -52,7 +52,8 @@ void main() {
 
   test('progress emits 0→1 and file lands', () async {
     final client = _FakeClient((req) async {
-      return _resp(200, [List.filled(50, 1), List.filled(50, 2)], contentLength: 100);
+      return _resp(200, [List.filled(50, 1), List.filled(50, 2)],
+          contentLength: 100);
     });
     final fractions = <double>[];
     final path = await downloader(client).download(
@@ -73,7 +74,8 @@ void main() {
       expect(req.headers['Range'], 'bytes=50-');
       return _resp(206, [List.filled(50, 8)], contentLength: 50);
     });
-    final path = await downloader(client).download(WhisperModel.tiny, config: cfg());
+    final path =
+        await downloader(client).download(WhisperModel.tiny, config: cfg());
     expect(File(path).lengthSync(), 100);
     expect(client.requests, 1);
   });
