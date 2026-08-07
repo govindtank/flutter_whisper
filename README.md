@@ -1,15 +1,19 @@
 # flutter_whisper
 
-On-device speech-to-text transcription using [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud, no API keys — models run locally on iOS and Android.
+On-device speech-to-text transcription using [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud, no API keys — models run locally on Android.
+
+> ⚠️ **Platform status:** Android is fully supported (JNI + whisper.cpp via CMake).
+> iOS is planned but not yet implemented.
 
 ## Features
 
 - 🎙️ On-device transcription (works offline, privacy-first)
-- ⬇️ Automatic model download on first use
+- ⬇️ Automatic model download on first use (resumable, with integrity check)
 - 🧠 5 model sizes: `tiny` (39 MB) → `large` (1.5 GB)
 - 🌍 Multilingual (tiny/base are English-only, small+ are multilingual)
 - ⏱️ Segment + word-level timestamps
 - 📡 Streaming segment results (real-time UI updates)
+- 🎤 Microphone recording → WAV → transcribe (Android)
 
 ## Getting started
 
@@ -38,15 +42,13 @@ for (final seg in result.segments) {
   print('[${seg.start}s - ${seg.end}s] ${seg.text}');
 }
 
-// 3. Transcribe raw PCM (16 kHz, mono)
-final result2 = await whisper.transcribePcm(pcmData);
+// 3. Record from the microphone, then transcribe
+await whisper.startRecording();
+// ... speak ...
+final wavPath = await whisper.stopRecording();
+final result2 = await whisper.transcribeFile(wavPath);
 
-// 4. Stream segments as they're generated
-final sub = whisper.streamFile('/path/to/audio.wav').listen((seg) {
-  print(seg.text);  // partial results for live UI
-});
-
-// 5. Clean up
+// 4. Clean up
 await whisper.dispose();
 ```
 
@@ -85,14 +87,8 @@ Models download automatically from HuggingFace on first `initialize()`.
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 ```
 
-**iOS** — add to `Info.plist` (only if recording):
-
-```xml
-<key>NSMicrophoneUsageDescription</key>
-<string>Microphone access for speech recognition</string>
-```
-
-No network permissions needed — transcription runs on-device.
+No network permissions needed — transcription runs on-device. Model downloads
+use the app's own network permission.
 
 ## Example
 
@@ -107,4 +103,4 @@ flutter run
 
 - [Report issues](https://github.com/govindtank/flutter_whisper/issues)
 - Native integration uses whisper.cpp via platform channels
-- PCM transcription and streaming are stubs — coming next
+- iOS support is on the roadmap (whisper.cpp static framework build)

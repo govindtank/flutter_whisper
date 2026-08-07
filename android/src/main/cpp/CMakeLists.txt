@@ -24,4 +24,15 @@ set_target_properties(whisper_jni PROPERTIES OUTPUT_NAME whisper)
 target_include_directories(whisper_jni PRIVATE
     ${WHISPER_CPP}/include
     ${WHISPER_CPP}/examples)
-target_link_libraries(whisper_jni PRIVATE whisper ggml)
+# Link to whisper (which transitively links ggml).
+target_link_libraries(whisper_jni PRIVATE whisper)
+
+# Ensure libggml.so exists for Android loader (whisper.cpp builds libggml-cpu.so).
+# Add a custom command to copy it.
+add_custom_command(
+    TARGET whisper_jni POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE_DIR:ggml>/libggml-cpu.so
+        $<TARGET_FILE_DIR:whisper_jni>/libggml.so
+    COMMENT "Copy libggml-cpu.so as libggml.so for Android loader"
+)

@@ -1,0 +1,61 @@
+# Build artifacts
+.dart_tool/
+example/.dart_tool/
+example/build/
+build/
+android/.cxx/
+android/build/
+android/.gradle/
+example/android/.gradle/
+ios/build/
+
+# IDE files
+.idea/
+*.iml
+
+# Vendored whisper.cpp — keep only what the Android CPU build needs.
+# CMake pulls in ggml (CPU backend only) + whisper.cpp/src + include + miniaudio.h.
+# Everything else (GPU backends, models, bindings, examples, CI) is excluded.
+
+# whisper.cpp top-level non-build dirs/files
+third_party/whisper.cpp/models/
+third_party/whisper.cpp/bindings/
+third_party/whisper.cpp/samples/
+third_party/whisper.cpp/tests/
+third_party/whisper.cpp/media/
+third_party/whisper.cpp/grammars/
+third_party/whisper.cpp/scripts/
+third_party/whisper.cpp/ci/
+third_party/whisper.cpp/.devops/
+third_party/whisper.cpp/.github/
+third_party/whisper.cpp/build-xcframework.sh
+third_party/whisper.cpp/Makefile
+third_party/whisper.cpp/CMakePresets.json
+third_party/whisper.cpp/README_sycl.md
+third_party/whisper.cpp/close-issue.yml
+third_party/whisper.cpp/AGENTS.md
+third_party/whisper.cpp/CONTRIBUTING.md
+third_party/whisper.cpp/AUTHORS
+
+# whisper.cpp examples: only miniaudio.h is needed (included by whisper_jni.cpp)
+third_party/whisper.cpp/examples/
+!third_party/whisper.cpp/examples/miniaudio.h
+
+# ggml: CPU backend only — drop GPU/other backend source dirs
+third_party/whisper.cpp/ggml/src/ggml-blas/
+third_party/whisper.cpp/ggml/src/ggml-cann/
+third_party/whisper.cpp/ggml/src/ggml-cuda/
+third_party/whisper.cpp/ggml/src/ggml-et/
+third_party/whisper.cpp/ggml/src/ggml-hexagon/
+third_party/whisper.cpp/ggml/src/ggml-hip/
+third_party/whisper.cpp/ggml/src/ggml-metal/
+third_party/whisper.cpp/ggml/src/ggml-musa/
+third_party/whisper.cpp/ggml/src/ggml-opencl/
+third_party/whisper.cpp/ggml/src/ggml-openvino/
+third_party/whisper.cpp/ggml/src/ggml-rpc/
+third_party/whisper.cpp/ggml/src/ggml-sycl/
+third_party/whisper.cpp/ggml/src/ggml-virtgpu/
+third_party/whisper.cpp/ggml/src/ggml-vulkan/
+third_party/whisper.cpp/ggml/src/ggml-webgpu/
+third_party/whisper.cpp/ggml/src/ggml-zdnn/
+third_party/whisper.cpp/ggml/src/ggml-zendnn/

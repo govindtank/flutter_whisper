@@ -30,3 +30,8 @@ build/
 
 # vendored whisper.cpp (fetched via scripts/fetch_whisper_cpp.sh)
 third_party/
+
+# Native build artifacts
+android/.cxx/
+android/.gradle/
+example/android/.gradle/

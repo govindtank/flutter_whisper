@@ -22,6 +22,7 @@ class WhisperContext(
     private var handle: Long = 0
 
     init {
+        System.loadLibrary("ggml-cpu")
         System.loadLibrary("whisper")
         handle = nativeInit(modelPath)
         if (handle == 0L) {

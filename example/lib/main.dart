@@ -414,9 +414,15 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
   void _selectModel(WhisperModel m) {
     if (m == _selected) return;
     setState(() => _selected = m);
+
+    final cached = _cached[m] == true;
     if (_state == AppState.ready) {
       _showSwitchConfirm(m);
+    } else if (cached) {
+      // Model already downloaded — initialize immediately.
+      _initialize();
     } else {
+      // Not cached — go to idle, user must tap the download button in the card.
       _setIdle();
     }
   }
@@ -836,20 +842,43 @@ class _WhisperDemoScreenState extends State<WhisperDemoScreen> {
               ),
               title: Text(m.name.toUpperCase()),
               subtitle: Text('${m.fileSizeHuman} • ${m.isMultilingual ? 'Multilingual' : 'English only'}'),
-              trailing: _cached[m] == true
-                  ? const Chip(
-                      avatar: Icon(Icons.check, size: 14),
-                      label: Text('Downloaded'),
-                      visualDensity: VisualDensity.compact,
-                    )
-                  : Radio<WhisperModel>(
-                      value: m,
-                      groupValue: _selected,
-                      onChanged: (_) => _selectModel(m),
-                    ),
+              trailing: _buildModelAction(m),
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildModelAction(WhisperModel m) {
+    final cached = _cached[m] == true;
+    final isSelected = m == _selected;
+
+    // If already initialized with this model
+    if (_state == AppState.ready && isSelected) {
+      return const Chip(
+        avatar: Icon(Icons.check_circle, size: 14, color: Colors.green),
+        label: Text('Loaded'),
+        visualDensity: VisualDensity.compact,
+      );
+    }
+
+    // Cached but not loaded — offer to initialize
+    if (cached) {
+      return FilledButton.tonal(
+        onPressed: () => _selectModel(m),
+        style: FilledButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        child: const Text('Initialize'),
+      );
+    }
+
+    // Not cached — radio to select and download
+    return Radio<WhisperModel>(
+      value: m,
+      groupValue: _selected,
+      onChanged: (_) => _selectModel(m),
     );
   }
 }
