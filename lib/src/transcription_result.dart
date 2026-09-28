@@ -38,7 +38,8 @@ class WordTimestamp {
       };
 
   @override
-  String toString() => '$word (${start.toStringAsFixed(2)}s - ${end.toStringAsFixed(2)}s)';
+  String toString() =>
+      '$word (${start.toStringAsFixed(2)}s - ${end.toStringAsFixed(2)}s)';
 }
 
 /// A single transcription segment with start and end timestamps.
@@ -84,7 +85,8 @@ class TranscriptionSegment {
       };
 
   @override
-  String toString() => '[${start.toStringAsFixed(2)}s - ${end.toStringAsFixed(2)}s] $text';
+  String toString() =>
+      '[${start.toStringAsFixed(2)}s - ${end.toStringAsFixed(2)}s] $text';
 }
 
 /// Full transcription result with text, language, duration, and segments.
@@ -148,7 +150,8 @@ class TranscriptionResult {
     for (var i = 0; i < segments.length; i++) {
       final seg = segments[i];
       buffer.writeln('${i + 1}');
-      buffer.writeln('${_formatSrtTimestamp(seg.start)} --> ${_formatSrtTimestamp(seg.end)}');
+      buffer.writeln(
+          '${_formatSrtTimestamp(seg.start)} --> ${_formatSrtTimestamp(seg.end)}');
       buffer.writeln(seg.text);
       buffer.writeln();
     }
@@ -161,7 +164,8 @@ class TranscriptionResult {
     for (var i = 0; i < segments.length; i++) {
       final seg = segments[i];
       buffer.writeln('${i + 1}');
-      buffer.writeln('${_formatVttTimestamp(seg.start)} --> ${_formatVttTimestamp(seg.end)}');
+      buffer.writeln(
+          '${_formatVttTimestamp(seg.start)} --> ${_formatVttTimestamp(seg.end)}');
       buffer.writeln(seg.text);
       buffer.writeln();
     }
@@ -173,7 +177,8 @@ class TranscriptionResult {
     if (!includeTimestamps) return text;
     final buffer = StringBuffer();
     for (final seg in segments) {
-      buffer.writeln('[${_formatShortTimestamp(seg.start)} - ${_formatShortTimestamp(seg.end)}] ${seg.text}');
+      buffer.writeln(
+          '[${_formatShortTimestamp(seg.start)} - ${_formatShortTimestamp(seg.end)}] ${seg.text}');
     }
     return buffer.toString().trimRight();
   }

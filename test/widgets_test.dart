@@ -4,7 +4,8 @@ import 'package:flutter_whisper/flutter_whisper.dart';
 
 void main() {
   group('Widget tests', () {
-    testWidgets('WhisperRecordingButton renders idle and active states', (tester) async {
+    testWidgets('WhisperRecordingButton renders idle and active states',
+        (tester) async {
       var started = false;
       var stopped = false;
 
@@ -43,7 +44,8 @@ void main() {
       expect(stopped, isTrue);
     });
 
-    testWidgets('TranscriptionView displays chips and segments', (tester) async {
+    testWidgets('TranscriptionView displays chips and segments',
+        (tester) async {
       final sample = TranscriptionResult(
         text: 'Voice note demo.',
         language: 'en',

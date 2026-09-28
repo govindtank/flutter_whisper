@@ -13,8 +13,10 @@ void main() {
           start: 0.5,
           end: 1.8,
           words: [
-            WordTimestamp(word: 'Hello', start: 0.5, end: 1.1, probability: 0.95),
-            WordTimestamp(word: 'world.', start: 1.2, end: 1.8, probability: 0.92),
+            WordTimestamp(
+                word: 'Hello', start: 0.5, end: 1.1, probability: 0.95),
+            WordTimestamp(
+                word: 'world.', start: 1.2, end: 1.8, probability: 0.92),
           ],
         ),
         TranscriptionSegment(
@@ -40,7 +42,8 @@ void main() {
       expect(srt, contains('1\n00:00:00,500 --> 00:00:01,800\nHello world.'));
       expect(
         srt,
-        contains('2\n00:00:02,000 --> 00:00:04,500\nThis is on-device speech recognition.'),
+        contains(
+            '2\n00:00:02,000 --> 00:00:04,500\nThis is on-device speech recognition.'),
       );
     });
 
@@ -50,7 +53,8 @@ void main() {
       expect(vtt, contains('1\n00:00:00.500 --> 00:00:01.800\nHello world.'));
       expect(
         vtt,
-        contains('2\n00:00:02.000 --> 00:00:04.500\nThis is on-device speech recognition.'),
+        contains(
+            '2\n00:00:02.000 --> 00:00:04.500\nThis is on-device speech recognition.'),
       );
     });
 
@@ -58,7 +62,8 @@ void main() {
       expect(result.toPlainText(), equals(result.text));
       final withTimestamps = result.toPlainText(includeTimestamps: true);
       expect(withTimestamps, contains('[00:00 - 00:01] Hello world.'));
-      expect(withTimestamps, contains('[00:02 - 00:04] This is on-device speech recognition.'));
+      expect(withTimestamps,
+          contains('[00:02 - 00:04] This is on-device speech recognition.'));
     });
 
     test('toMap and serialization round-trip', () {

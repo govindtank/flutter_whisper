@@ -44,7 +44,8 @@ class TranscriptionView extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: cardColor ?? theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+              color: cardColor ??
+                  theme.colorScheme.surfaceContainerHighest.withAlpha(128),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -71,7 +72,8 @@ class TranscriptionView extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: result.text));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied transcript to clipboard')),
+                      const SnackBar(
+                          content: Text('Copied transcript to clipboard')),
                     );
                   },
                 ),
@@ -83,7 +85,9 @@ class TranscriptionView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              result.text.isNotEmpty ? result.text : 'No transcription available.',
+              result.text.isNotEmpty
+                  ? result.text
+                  : 'No transcription available.',
               style: theme.textTheme.bodyLarge,
             ),
           )
@@ -97,8 +101,10 @@ class TranscriptionView extends StatelessWidget {
               final segment = result.segments[index];
               return Card(
                 elevation: 0,
-                color: cardColor ?? theme.colorScheme.surfaceContainerHighest.withAlpha(80),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                color: cardColor ??
+                    theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -133,7 +139,8 @@ class TranscriptionView extends StatelessWidget {
                             visualDensity: VisualDensity.compact,
                             tooltip: 'Copy segment',
                             onPressed: () {
-                              Clipboard.setData(ClipboardData(text: segment.text));
+                              Clipboard.setData(
+                                  ClipboardData(text: segment.text));
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Segment copied')),
                               );
@@ -166,7 +173,8 @@ class TranscriptionView extends StatelessWidget {
                                 color: theme.colorScheme.surface,
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: theme.colorScheme.outline.withAlpha(50),
+                                  color:
+                                      theme.colorScheme.outline.withAlpha(50),
                                 ),
                               ),
                               child: Text(

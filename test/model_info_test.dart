@@ -3,7 +3,8 @@ import 'package:flutter_whisper/flutter_whisper.dart';
 
 void main() {
   group('WhisperModel specifications and metadata', () {
-    test('models have valid RAM requirements, file sizes, and download URLs', () {
+    test('models have valid RAM requirements, file sizes, and download URLs',
+        () {
       for (final model in WhisperModel.values) {
         expect(model.fileSizeBytes, greaterThan(1000000));
         expect(model.fileSizeHuman, isNotEmpty);

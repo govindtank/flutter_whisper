@@ -27,7 +27,9 @@ void main() {
 
     test('isValidWavHeader handles invalid or short bytes', () {
       expect(AudioUtils.isValidWavHeader(Uint8List(5)), isFalse);
-      expect(AudioUtils.isValidWavHeader(Uint8List.fromList(List.filled(44, 0))), isFalse);
+      expect(
+          AudioUtils.isValidWavHeader(Uint8List.fromList(List.filled(44, 0))),
+          isFalse);
     });
   });
 }

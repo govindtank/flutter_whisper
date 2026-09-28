@@ -68,11 +68,16 @@ enum WhisperModel {
 
   /// Recommended use-case description for this model size.
   String get recommendedUseCase => switch (this) {
-        WhisperModel.tiny => 'Real-time chat, quick voice commands, and memory-constrained devices.',
-        WhisperModel.base => 'Standard mobile voice dictation with balanced speed and accuracy.',
-        WhisperModel.small => 'Multilingual transcription, meetings, interviews, and notes.',
-        WhisperModel.medium => 'Podcasts, lectures, accented audio, and long-form recording.',
-        WhisperModel.large => 'Studio audio, complex domain terminology, and professional subtitling.',
+        WhisperModel.tiny =>
+          'Real-time chat, quick voice commands, and memory-constrained devices.',
+        WhisperModel.base =>
+          'Standard mobile voice dictation with balanced speed and accuracy.',
+        WhisperModel.small =>
+          'Multilingual transcription, meetings, interviews, and notes.',
+        WhisperModel.medium =>
+          'Podcasts, lectures, accented audio, and long-form recording.',
+        WhisperModel.large =>
+          'Studio audio, complex domain terminology, and professional subtitling.',
       };
 
   /// Official HuggingFace download URL for the quantized model binary.
