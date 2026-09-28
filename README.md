@@ -7,33 +7,41 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android-brightgreen?style=flat-square)](https://pub.dev/packages/flutter_whisper)
 
-Fast, on-device speech-to-text transcription for Flutter using [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and native C++ JNI bindings. 100% offline, privacy-first, with zero cloud API keys, automatic model downloads, and streaming segment callbacks.
+Fast, on-device speech-to-text transcription for Flutter powered by [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and native C++ JNI bindings with ARM NEON acceleration. 100% offline, privacy-first, with automatic model downloading, SubRip (SRT) & WebVTT subtitle export, in-memory buffer transcription, and drop-in Material 3 UI widgets.
 
 Now available on **[pub.dev/packages/flutter_whisper](https://pub.dev/packages/flutter_whisper)**.
 
 ---
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/govindtank/flutter_whisper/main/screenshot.svg" width="850" alt="flutter_whisper preview screenshot" />
+</p>
+
+---
+
 > 📱 **Platform Status:**
-> - **Android:** Fully supported (JNI + CMake + whisper.cpp native engine with ARM NEON acceleration).
+> - **Android:** Fully supported (JNI + CMake + whisper.cpp native engine with ARM NEON SIMD acceleration).
 > - **iOS:** Planned on roadmap (static framework build).
 
 ---
 
 ## ✨ Features
 
-- 🔒 **100% On-Device & Offline** — Audio never leaves the user's device. No cloud subscriptions, no API keys, no latency overhead.
-- ⬇️ **Automatic Resumable Model Downloads** — Downloads standard quantized GGUF models directly from HuggingFace on first use with integrity checks and exponential backoff.
-- 🧠 **5 Model Sizes** — From ultra-fast `tiny` (39 MB) to studio-accuracy `large` (1.5 GB).
-- 🌐 **Multilingual & Translation** — Supports multilingual speech recognition with automatic language detection and real-time translation to English.
-- ⏱️ **Segment & Word-Level Timestamps** — Get start/end timestamps for every recognized phrase or individual word.
-- 📡 **Real-Time Streaming Callbacks** — Stream interim transcription segments to update UI as speech is decoded.
-- 🎤 **Built-in Audio Recorder** — Capture microphone audio directly to 16kHz WAV format ready for transcription.
+- 🔒 **100% On-Device & Offline** — Audio never leaves the user's phone. No cloud API subscriptions, no latency to external servers, and complete user privacy.
+- 📝 **Subtitle Exporters (SRT & WebVTT)** — Built-in `.toSrt()` and `.toVtt()` formatters with millisecond-accurate timestamp blocks.
+- 🎛️ **In-Memory Buffer Transcription** — Transcribe `Uint8List` byte buffers and raw PCM audio streams directly via `transcribeBytes()`.
+- 🧩 **Drop-in UI Components** — Includes `WhisperRecordingButton` (animated pulsing ripples and duration counter) and `TranscriptionView` (Material 3 transcript cards with timestamp chips and copy actions).
+- ⬇️ **Automatic Resumable Downloads** — Quantized GGUF models download directly from HuggingFace on first use with integrity checks and exponential backoff.
+- 🧠 **5 Quantized Model Sizes** — From ultra-light `tiny` (39 MB) to studio-grade `large-v3` (1.5 GB).
+- ⏱️ **Word & Segment-Level Timestamps** — Access exact start/end offsets and confidence probabilities per word.
+- 🌐 **Multilingual & Real-Time Translation** — Auto-detects 99+ languages and translates spoken audio directly into English.
+- 🎤 **Built-in Microphone WAV Recorder** — Record 16kHz mono audio on-device with zero extra audio dependencies.
 
 ---
 
 ## 📦 Installation
 
-Add `flutter_whisper` to your Flutter app:
+Add `flutter_whisper` to your Flutter project:
 
 ```bash
 flutter pub add flutter_whisper
@@ -43,7 +51,7 @@ Or in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_whisper: ^0.1.0
+  flutter_whisper: ^0.2.0
 ```
 
 Import:
@@ -54,9 +62,9 @@ import 'package:flutter_whisper/flutter_whisper.dart';
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Usage Guide
 
-### 1. Initialize and Transcribe Audio File
+### 1. Transcribe an Audio File
 
 ```dart
 import 'package:flutter_whisper/flutter_whisper.dart';
@@ -64,41 +72,74 @@ import 'package:flutter_whisper/flutter_whisper.dart';
 void main() async {
   final whisper = Whisper();
 
-  // 1. Initialize model (automatically downloads on first run)
+  // 1. Initialize (downloads model automatically on first run)
   await whisper.initialize(
     model: WhisperModel.tiny,
-    onProgress: (progress) {
-      print('Model download progress: ${(progress.fraction * 100).toStringAsFixed(1)}%');
-    },
+    onProgress: (p) => print('Download: ${(p.fraction * 100).toStringAsFixed(1)}%'),
   );
 
-  // 2. Transcribe a 16kHz WAV audio file
+  // 2. Transcribe a 16kHz WAV file
   final result = await whisper.transcribeFile(
-    '/path/to/sample.wav',
-    onSegment: (segment) {
-      print('[${segment.start}s - ${segment.end}s] ${segment.text}');
-    },
+    '/path/to/recording.wav',
+    onProgress: (progress) => print('Transcribing: $progress%'),
   );
 
-  print('Detected Language: ${result.language}');
-  print('Full Transcript:\n${result.text}');
+  print('Full Transcript: ${result.text}');
+  print('Language: ${result.language}');
+  print('Total Words: ${result.wordCount}');
 
-  // 3. Dispose when finished
+  // 3. Clean up
   await whisper.dispose();
 }
 ```
 
 ---
 
-### 2. Live Microphone Recording & Transcription
+### 2. Exporting to SubRip (.srt) and WebVTT (.vtt)
 
-Record directly from the device's microphone and transcribe the result:
+Generate subtitle tracks for video players or caption workflows:
+
+```dart
+final result = await whisper.transcribeFile('podcast.wav');
+
+// SubRip format (00:01:23,450 --> 00:01:26,890)
+final String srtContent = result.toSrt();
+await File('subtitles.srt').writeAsString(srtContent);
+
+// WebVTT format (WEBVTT\n\n00:01:23.450 --> 00:01:26.890)
+final String vttContent = result.toVtt();
+await File('subtitles.vtt').writeAsString(vttContent);
+
+// Plain text with timestamp brackets: [01:23 - 01:26]
+final String textWithTimestamps = result.toPlainText(includeTimestamps: true);
+```
+
+---
+
+### 3. In-Memory Byte Transcription (`transcribeBytes`)
+
+Transcribe audio buffers received from network sockets, Bluetooth, or memory caches:
+
+```dart
+final Uint8List audioBytes = await fetchAudioBytes();
+
+final result = await whisper.transcribeBytes(
+  audioBytes,
+  isRawPcm: false, // Set true if passing raw 16kHz PCM bytes without WAV header
+);
+
+print(result.text);
+```
+
+---
+
+### 4. Live Microphone Recording
 
 ```dart
 final whisper = Whisper();
 await whisper.initialize(model: WhisperModel.base);
 
-// Start recording microphone input
+// Start recording microphone input (16kHz WAV on disk)
 await whisper.startRecording();
 
 // ... user speaks ...
@@ -113,82 +154,106 @@ print('You said: ${result.text}');
 
 ---
 
-## ⚙️ Configuration & Options
+### 5. Drop-in Material 3 UI Widgets
 
-Customize transcription behavior using `WhisperOptions`:
+Add high-polish voice dictation UI in seconds using built-in widgets:
 
 ```dart
-await whisper.initialize(
-  model: WhisperModel.small,
-  options: const WhisperOptions(
-    language: 'auto',       // 'auto' for language detection or 'en', 'es', 'hi', 'fr' etc.
-    translate: false,       // Set true to translate source audio into English
-    vad: true,              // Voice Activity Detection to skip silent regions
-    wordTimestamps: true,   // Compute word-level precise timestamps
-    threads: 4,             // CPU worker threads (0 = auto-detect hardware concurrency)
-    temperature: 0.0,       // Sampling temperature (0.0 for greedy deterministic output)
-  ),
-);
+import 'package:flutter/material.dart';
+import 'package:flutter_whisper/flutter_whisper.dart';
+
+class VoiceNotesScreen extends StatefulWidget {
+  const VoiceNotesScreen({super.key});
+
+  @override
+  State<VoiceNotesScreen> createState() => _VoiceNotesScreenState();
+}
+
+class _VoiceNotesScreenState extends State<VoiceNotesScreen> {
+  final Whisper _whisper = Whisper();
+  bool _isRecording = false;
+  int _recordSeconds = 0;
+  TranscriptionResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _whisper.initialize(model: WhisperModel.base);
+  }
+
+  void _onStart() async {
+    await _whisper.startRecording();
+    setState(() => _isRecording = true);
+  }
+
+  void _onStop() async {
+    final wavPath = await _whisper.stopRecording();
+    setState(() => _isRecording = false);
+
+    final res = await _whisper.transcribeFile(wavPath);
+    setState(() => _result = res);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Voice Notes')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // 1. Pulsing Animated Recording Button
+            WhisperRecordingButton(
+              isRecording: _isRecording,
+              recordSeconds: _recordSeconds,
+              onStart: _onStart,
+              onStop: _onStop,
+            ),
+            const SizedBox(height: 24),
+
+            // 2. Transcription Viewer with Timestamp Chips and Copy Action
+            if (_result != null)
+              TranscriptionView(
+                result: _result!,
+                onSegmentTap: (segment) {
+                  print('Tapped: ${segment.start}s to ${segment.end}s');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 ```
 
 ---
 
-## 🧠 Available Models
+## 🧠 Model Specifications & Hardware Requirements
 
-| Model | File Size | English-Only | Multilingual | Best For |
-|---|---|---|---|---|
-| `WhisperModel.tiny` | **39 MB** | ✅ `tiny.en` | ✅ `tiny` | Real-time chat, low memory devices, quick commands |
-| `WhisperModel.base` | **75 MB** | ✅ `base.en` | ✅ `base` | Balanced everyday speech recognition |
-| `WhisperModel.small` | **150 MB** | — | ✅ `small` | High accuracy transcription with good performance |
-| `WhisperModel.medium` | **300 MB** | — | ✅ `medium` | Heavy conversational audio, accents, and podcasts |
-| `WhisperModel.large` | **1.5 GB** | — | ✅ `large-v3` | Highest precision, complex jargon, difficult acoustics |
-
-*Models are downloaded once and cached locally in app documents directory.*
+| Model | Download Size | Runtime RAM | Relative Speed | Accuracy | Best For |
+|---|---|---|---|---|---|
+| `WhisperModel.tiny` | **74 MB** | ~150 MB | ⚡⚡⚡⚡⚡ | ⭐⭐ | Quick voice commands, real-time chat, low memory devices |
+| `WhisperModel.base` | **143 MB** | ~250 MB | ⚡⚡⚡⚡ | ⭐⭐⭐ | Everyday voice notes and speech dictation |
+| `WhisperModel.small` | **461 MB** | ~500 MB | ⚡⚡⚡ | ⭐⭐⭐⭐ | Multilingual conversations, meetings, and interviews |
+| `WhisperModel.medium` | **1.4 GB** | ~1.2 GB | ⚡⚡ | ⭐⭐⭐⭐⭐ | Podcasts, lectures, accented audio, and long-form recording |
+| `WhisperModel.large` | **2.9 GB** | ~2.5 GB | ⚡ | ⭐⭐⭐⭐⭐ | Studio audio, specialized terminology, professional subtitles |
 
 ---
 
 ## 📱 Platform Setup
 
 ### Android Setup
-
-Add `RECORD_AUDIO` permission to `android/app/src/main/AndroidManifest.xml` (required only if using `startRecording()`):
+Add the permissions to `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Microphone permission for speech recording -->
+    <!-- Required only if using startRecording() -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Internet permission for initial model download -->
+    <!-- Required for initial model download from HuggingFace -->
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>
 ```
-
----
-
-## 📚 API Reference
-
-### `Whisper`
-The primary controller class:
-
-| Method | Returns | Description |
-|---|---|---|
-| `initialize({WhisperModel model, WhisperOptions? options, void Function(WhisperDownloadProgress)? onProgress})` | `Future<void>` | Downloads model if needed and initializes native whisper context. |
-| `transcribeFile(String path, {void Function(TranscriptionSegment)? onSegment})` | `Future<TranscriptionResult>` | Runs offline transcription on a WAV audio file. |
-| `startRecording()` | `Future<void>` | Starts microphone capture in 16kHz mono WAV format. |
-| `stopRecording()` | `Future<String>` | Stops recording and returns the path to the recorded WAV file. |
-| `isModelDownloaded(WhisperModel model)` | `Future<bool>` | Checks if model file exists in local cache. |
-| `deleteModel(WhisperModel model)` | `Future<void>` | Deletes cached model file to free device storage. |
-| `dispose()` | `Future<void>` | Frees native C++ memory and resources. |
-
----
-
-### `TranscriptionResult`
-
-| Property | Type | Description |
-|---|---|---|
-| `text` | `String` | Concatenated full transcript text. |
-| `language` | `String` | Detected or configured language ISO code (e.g. `en`, `hi`, `de`). |
-| `segments` | `List<TranscriptionSegment>` | List of segmented transcription timestamps and sentences. |
-| `durationSeconds` | `double` | Total audio duration processed. |
 
 ---
 
@@ -203,4 +268,4 @@ flutter analyze
 
 ## 📄 License
 
-MIT License. whisper.cpp is licensed under MIT (Georgi Gerganov).
+MIT License. See [LICENSE](LICENSE) for details.

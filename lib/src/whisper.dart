@@ -118,6 +118,38 @@ class Whisper {
         .transcribeFile(audioPath, options: options, onProgress: onProgress);
   }
 
+  /// Transcribes in-memory audio bytes directly (WAV or raw PCM).
+  ///
+  /// If [isRawPcm] is true, wraps the PCM bytes with a standard 16kHz WAV header.
+  Future<TranscriptionResult> transcribeBytes(
+    Uint8List audioBytes, {
+    bool isRawPcm = false,
+    WhisperOptions? options,
+    void Function(int)? onProgress,
+  }) async {
+    _assertInitialized();
+    final bytes = isRawPcm ? AudioUtils.pcmToWav(audioBytes) : audioBytes;
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File(
+      '${tempDir.path}/whisper_buf_${DateTime.now().microsecondsSinceEpoch}.wav',
+    );
+
+    try {
+      await tempFile.writeAsBytes(bytes, flush: true);
+      return await transcribeFile(
+        tempFile.path,
+        options: options,
+        onProgress: onProgress,
+      );
+    } finally {
+      if (tempFile.existsSync()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
   /// Start recording from the microphone (16 kHz mono WAV on disk).
   ///
   /// Combine with [stopRecording] → [transcribeFile] for record-and-transcribe.
