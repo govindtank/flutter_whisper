@@ -1,6 +1,6 @@
 name: flutter_whisper
 description: On-device speech-to-text transcription using whisper.cpp. Automatic model download, streaming segment results, Android support.
-version: 0.2.0
+version: 0.2.1
 homepage: https://github.com/govindtank/flutter_whisper
 repository: https://github.com/govindtank/flutter_whisper
 issue_tracker: https://github.com/govindtank/flutter_whisper/issues

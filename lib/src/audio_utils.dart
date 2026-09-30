@@ -106,4 +106,19 @@ class AudioUtils {
     final dataSize = wavBytes.length - 44;
     return dataSize / byteRate;
   }
+
+  /// Calculates root-mean-square (RMS) volume level of 16-bit PCM audio samples.
+  static double calculateRms(Uint8List pcmBytes) {
+    if (pcmBytes.length < 2) return 0.0;
+    final buffer = ByteData.view(
+        pcmBytes.buffer, pcmBytes.offsetInBytes, pcmBytes.lengthInBytes);
+    final sampleCount = pcmBytes.length ~/ 2;
+    var sumSquares = 0.0;
+    for (var i = 0; i < sampleCount; i++) {
+      final sample = buffer.getInt16(i * 2, Endian.little);
+      final normalized = sample / 32768.0;
+      sumSquares += normalized * normalized;
+    }
+    return math.sqrt(sumSquares / sampleCount);
+  }
 }

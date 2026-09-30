@@ -16,3 +16,8 @@
 * Native whisper.cpp engine via JNI bridge, CPU inference (ARM64 / ARMv7).
 * Streaming segment results for real-time UI updates.
 * Segment + word-level timestamps, language auto-detection and forcing.
+
+## 0.2.1
+
+* Added `AudioUtils.calculateRms()` for Voice Activity Detection and audio energy measurement.
+* Automated pub.dev OIDC deployment.
