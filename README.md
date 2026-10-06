@@ -1,15 +1,12 @@
 # flutter_whisper
 
-[![Pub Version](https://img.shields.io/pub/v/flutter_whisper.svg?style=flat-square&color=blue)](https://pub.dev/packages/flutter_whisper)
-[![Pub Points](https://img.shields.io/pub/points/flutter_whisper?style=flat-square&color=2E8B57&label=pub%20points)](https://pub.dev/packages/flutter_whisper/score)
-[![Pub Likes](https://img.shields.io/pub/likes/flutter_whisper?style=flat-square)](https://pub.dev/packages/flutter_whisper)
-[![CI](https://github.com/govindtank/flutter_whisper/actions/workflows/ci.yml/badge.svg)](https://github.com/govindtank/flutter_whisper/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Android-brightgreen?style=flat-square)](https://pub.dev/packages/flutter_whisper)
-
-Fast, on-device speech-to-text transcription for Flutter powered by [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and native C++ JNI bindings with ARM NEON acceleration. 100% offline, privacy-first, with automatic model downloading, SubRip (SRT) & WebVTT subtitle export, in-memory buffer transcription, and drop-in Material 3 UI widgets.
-
-Now available on **[pub.dev/packages/flutter_whisper](https://pub.dev/packages/flutter_whisper)**.
+<p align="center">
+  <a href="https://pub.dev/packages/flutter_whisper"><img src="https://img.shields.io/pub/v/flutter_whisper.svg?style=flat-square&color=blue" alt="Pub Version"></a>
+  <a href="https://pub.dev/packages/flutter_whisper/score"><img src="https://img.shields.io/pub/points/flutter_whisper?style=flat-square&color=2E8B57&label=pub%20points" alt="Pub Points"></a>
+  <a href="https://pub.dev/packages/flutter_whisper"><img src="https://img.shields.io/pub/likes/flutter_whisper?style=flat-square" alt="Pub Likes"></a>
+  <a href="https://github.com/govindtank/flutter_whisper/actions"><img src="https://github.com/govindtank/flutter_whisper/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square" alt="License"></a>
+</p>
 
 ---
 
